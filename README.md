@@ -1,4 +1,4 @@
-# AnyDocGen
+# AnyTexGen
 
 anysrc内の資料をtex内にtexで資料化・論文化するツール
 

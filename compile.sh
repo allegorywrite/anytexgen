@@ -13,6 +13,7 @@ show_help() {
     echo "プロジェクトパス:"
     echo "  tex/jcmsi/temp      JCMSI論文プロジェクト"
     echo "  tex/seminar/temp    セミナー発表プロジェクト"
+    echo "  tex/seminar/temp_ja セミナー発表プロジェクト（日本語版）"
     echo "  tex/sice/temp       SICE論文プロジェクト"
     echo ""
     echo "オプション:"
@@ -57,6 +58,11 @@ case "$PROJECT_PATH" in
         COMPILE_TYPE="simple"
         FIG_DIRS="fig"
         ;;
+    "tex/seminar/temp_ja")
+        TEX_FILE="template_v1.0.tex"
+        COMPILE_TYPE="simple"
+        FIG_DIRS="fig"
+        ;;
     "tex/sice/temp")
         TEX_FILE="SICE_FES25.tex"
         COMPILE_TYPE="simple"
@@ -64,7 +70,7 @@ case "$PROJECT_PATH" in
         ;;
     *)
         echo "エラー: 未対応のプロジェクト '$PROJECT_PATH'"
-        echo "対応プロジェクト: tex/jcmsi/temp, tex/seminar/temp, tex/sice/temp"
+        echo "対応プロジェクト: tex/jcmsi/temp, tex/seminar/temp, tex/seminar/temp_ja, tex/sice/temp"
         exit 1
         ;;
 esac
