@@ -91,28 +91,7 @@ utils/convert_png_to_eps.sh -f tex/jcmsi/temp/fig    # 強制上書き
 utils/convert_png_to_eps.sh -r tex/                  # 再帰的に全ディレクトリ処理
 ```
 
-### 従来の方法：各プロジェクト内でのコンパイル
-
-各プロジェクトのtempディレクトリ内でも実行可能（非推奨）：
-
-```bash
-cd tex/jcmsi/temp
-../../../utils/compile_tex.sh template.tex . full fig
-```
-
-### コンパイルタイプ
-
-- **simple**: `platex + dvipdfmx`（通常の論文）
-- **full**: `platex + pbibtex + platex + platex + dvipdfmx`（参考文献付き）
-
-### 自動PNG->EPS変換
-
-コンパイル時に自動的に：
-- 指定された図ディレクトリ内のPNGファイルをEPSに変換
-- PNGファイルがEPSファイルより新しい場合のみ変換を実行
-- ImageMagickが必要（未インストールの場合は警告のみ）
-
-### 必要なソフトウェア
+### 前提環境
 
 - **TeX環境**: platex, dvipdfmx, pbibtex
 - **画像変換**: ImageMagick（convertコマンド）
@@ -125,31 +104,3 @@ sudo apt install texlive-lang-japanese imagemagick inotify-tools
 # macOSの場合
 brew install imagemagick fswatch
 ```
-
-## 各プロジェクトの特徴
-
-### JCMSI
-- フルコンパイル対応（参考文献処理）
-- 図ディレクトリ: `fig/`
-
-### Seminar
-- シンプルコンパイル
-- 図ディレクトリ: `fig/`
-
-### SICE
-- シンプルコンパイル
-- 図ディレクトリ: `Fig/`（大文字のF）
-
-## トラブルシューティング
-
-### コンパイルエラー
-- エラーが発生してもスクリプトは続行します
-- `.log`ファイルでエラー詳細を確認してください
-
-### 画像変換エラー
-- ImageMagickがインストールされているか確認
-- PNGファイルが破損していないか確認
-
-### 自動監視が動作しない
-- inotify-toolsがインストールされているか確認
-- ファイルシステムがinotifyをサポートしているか確認
