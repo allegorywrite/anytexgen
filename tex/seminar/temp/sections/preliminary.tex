@@ -1,0 +1,88 @@
+% \section{\textbf{準備：制御バリア関数}}
+\section{準備：制御バリア関数}
+
+本章では，本研究の基礎となる制御バリア関数(Control Barrier Function, CBF)の基本概念と高次制御バリア関数(High Order Control Barrier Function, HOCBF)について説明する．
+
+\subsection{CBFの基本概念}
+
+CBFは，システム状態がある安全集合内に留まることを保証するためのLyapunov関数に類似した概念である．以下では，CBFの基本的な定義と性質について述べる．
+
+連続時間の制御アフィンシステムを考える：
+\begin{equation}
+\begin{aligned}
+\dot{\mathbf{x}} = f(\mathbf{x}) + g(\mathbf{x})\mathbf{u}
+\label{eq:control_affine}
+\end{aligned}
+\end{equation}
+ここで，$\mathbf{x} \in \mathbb{R}^n$は状態，$\mathbf{u} \in \mathbb{R}^m$は制御入力，$f: \mathbb{R}^n \rightarrow \mathbb{R}^n$と$g: \mathbb{R}^n \rightarrow \mathbb{R}^{n \times m}$は局所Lipschitz連続な関数である．
+
+安全集合$\mathcal{C}$を以下のように定義する：
+\begin{equation}
+\begin{aligned}
+\mathcal{C} = \{\mathbf{x} \in \mathbb{R}^n : h(\mathbf{x}) \geq 0\}
+\label{eq:safe_set}
+\end{aligned}
+\end{equation}
+ここで，$h: \mathbb{R}^n \rightarrow \mathbb{R}$は連続微分可能な関数である．
+
+\begin{dfn}[制御バリア関数]
+関数$h: \mathbb{R}^n \rightarrow \mathbb{R}$が連続微分可能であり，その勾配$\nabla h(\mathbf{x})$が$\mathcal{C}$上でゼロにならないとする．このとき，$h$が制御バリア関数であるとは，ある拡張クラス$\mathcal{K}_{\infty}$関数$\alpha$が存在して，任意の$\mathbf{x} \in \mathcal{C}$に対して以下の条件を満たす制御入力$\mathbf{u} \in \mathbb{R}^m$が存在することである：
+\begin{equation}
+\begin{aligned}
+L_f h(\mathbf{x}) + L_g h(\mathbf{x})\mathbf{u} + \alpha(h(\mathbf{x})) \geq 0
+\label{eq:cbf_condition}
+\end{aligned}
+\end{equation}
+ここで，$L_f h(\mathbf{x}) = \nabla h(\mathbf{x})^T f(\mathbf{x})$と$L_g h(\mathbf{x}) = \nabla h(\mathbf{x})^T g(\mathbf{x})$はそれぞれ$h$の$f$と$g$に関するLie微分である．
+\end{dfn}
+
+CBFの重要な性質は，\Eqref{eq:cbf_condition}を満たす任意の制御入力$\mathbf{u}$を用いると，安全集合$\mathcal{C}$が前方不変となることである．つまり，初期状態$\mathbf{x}(0) \in \mathcal{C}$に対して，任意の時刻$t \geq 0$において$\mathbf{x}(t) \in \mathcal{C}$が保証される．
+
+実際の制御設計では，CBF制約を満たしつつ，制御目標を達成するための最適制御入力を求めることが多い．これは以下のような二次計画問題(Quadratic Programming, QP)として定式化できる：
+\begin{equation}
+\begin{aligned}
+\mathbf{u}^* &= \underset{\mathbf{u} \in \mathbb{R}^m}{\text{argmin}} \:\: \|\mathbf{u} - \mathbf{u}_{\text{nom}}\|^2 \\
+\text{s.t.} & \:\: L_f h(\mathbf{x}) + L_g h(\mathbf{x})\mathbf{u} + \alpha(h(\mathbf{x})) \geq 0
+\label{eq:cbf_qp}
+\end{aligned}
+\end{equation}
+ここで，$\mathbf{u}_{\text{nom}}$は安全制約を考慮しない場合の公称制御入力である．
+
+\subsection{高次制御バリア関数}
+
+従来のCBFは制約関数の相対次数が1であることを仮定していたが，多くの実システムでは安全制約が高次微分に依存するため，高次制御バリア関数(HOCBF)が必要となる．
+
+関数$h(\mathbf{x})$の相対次数が$r > 1$の場合，以下のように補助関数の連鎖を定義する：
+\begin{equation}
+\begin{aligned}
+\psi_0(\mathbf{x}) &= h(\mathbf{x}) \\
+\psi_1(\mathbf{x}) &= \dot{\psi}_0(\mathbf{x}) + \alpha_1(\psi_0(\mathbf{x})) \\
+\psi_2(\mathbf{x}) &= \dot{\psi}_1(\mathbf{x}) + \alpha_2(\psi_1(\mathbf{x})) \\
+&\vdots \\
+\psi_{r-1}(\mathbf{x}) &= \dot{\psi}_{r-2}(\mathbf{x}) + \alpha_{r-1}(\psi_{r-2}(\mathbf{x}))
+\label{eq:hocbf_psi}
+\end{aligned}
+\end{equation}
+ここで，$\alpha_i$($i = 1, 2, \ldots, r-1$)は拡張クラス$\mathcal{K}$関数である．
+
+\begin{dfn}[高次制御バリア関数]
+関数$h: \mathbb{R}^n \rightarrow \mathbb{R}$が$r$回連続微分可能であり，その相対次数が$r$であるとする．このとき，$h$が高次制御バリア関数であるとは，拡張クラス$\mathcal{K}$関数$\alpha_1, \alpha_2, \ldots, \alpha_r$が存在して，以下の条件を満たすことである：
+\begin{equation}
+\begin{aligned}
+L_f^r h(\mathbf{x}) + L_g L_f^{r-1} h(\mathbf{x})\mathbf{u} + \alpha_r(\psi_{r-1}(\mathbf{x})) \geq 0
+\label{eq:hocbf_condition}
+\end{aligned}
+\end{equation}
+ここで，$L_f^r h(\mathbf{x})$は$h$の$f$に関する$r$次のLie微分，$L_g L_f^{r-1} h(\mathbf{x})$は$L_f^{r-1} h(\mathbf{x})$の$g$に関するLie微分である．
+\end{dfn}
+
+HOCBFを用いた制御設計では，\Eqref{eq:hocbf_condition}の制約を満たす制御入力を求めることで，安全集合$\mathcal{C}$の前方不変性を保証できる．これは以下のようなQP問題として定式化できる：
+\begin{equation}
+\begin{aligned}
+    \mathbf{u}^* &= \underset{\mathbf{u} \in \mathbb{R}^m}{\text{argmin}} \:\: \|\mathbf{u} - \mathbf{u}_{\text{nom}}\|^2 \\
+\text{s.t.} & \:\:  L_f^r h(\mathbf{x}) + L_g L_f^{r-1} h(\mathbf{x})\mathbf{u} + \alpha_r(\psi_{r-1}(\mathbf{x})) \geq 0
+\label{eq:hocbf_qp}
+\end{aligned}
+\end{equation}
+
+HOCBFは，非ホロノミック制約を持つシステムや，高次の安全制約を持つシステムに対して有効である．特に，本研究で扱うSE(3)上の剛体運動制御では，視野制約が状態の高次微分に依存するため，HOCBFが重要な役割を果たす．

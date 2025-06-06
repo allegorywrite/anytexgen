@@ -1,0 +1,12 @@
+.obsidian/
+.claude/
+# Ignore temp_ja and similar temp directories except tex/{version}/temp
+tex/*/temp_ja/
+**/temp_ja/
+**/temp_en/
+
+# Ignore refs directory contents except .gitkeep files
+refs/build/*
+refs/materials/*
+!refs/build/.gitkeep
+!refs/materials/.gitkeep

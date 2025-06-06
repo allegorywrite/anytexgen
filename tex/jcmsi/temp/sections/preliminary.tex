@@ -1,0 +1,88 @@
+\section{Preliminary}
+\label{sec:preliminary}
+
+This section introduces the core mathematical concepts utilized in our proposed method: Stein Variational Gradient Descent (SVGD) for non-parametric Bayesian inference and the Alternating Direction Method of Multipliers (ADMM) for distributed optimization.
+
+\subsection{Stein Variational Gradient Descent (SVGD)}
+
+% \textbf{Theorem 1.} (Stein Variational Gradient Descent \cite{Liu2016})
+\begin{theorem}[Stein Variational Gradient Descent \cite{Liu2016}]
+\label{thm:svgd}
+Let $p(x)$ be a target probability distribution and $q(x)$ be an approximating distribution implicitly represented by a set of particles $\{x_i\}_{i=1}^m$. Let ${\mathcal{H}}^d$ be a Reproducing Kernel Hilbert Space (RKHS) associated with a positive definite kernel $k(x, x')$. The goal is to minimize the Kullback-Leibler (KL) divergence $D_{KL}(q \| p)$ defined in \Eqref{eq:kl_min_prelim}:
+\begin{equation}
+\begin{aligned}
+ q^{*}&=\underset{q \in {\mathcal{Q}}}{\arg\min}\left\{D_{KL}(q \| p) \equiv {{\mathbb{E}}}_{q}[\log q(x)]-{{\mathbb{E}}}_{q}[\log {p}(x)] \right\}.
+ \label{eq:kl_min_prelim}
+\end{aligned}
+\end{equation}
+The direction ${\boldsymbol{\Phi}}_{q, p}^{*} \in {\mathcal{H}}^d$ that maximally decreases the KL divergence within the unit ball of the RKHS, i.e., maximizes ${{\mathbb{E}}}_{x \sim q}\left[{\mathcal{A}}_{p} {\boldsymbol{\Phi}}(x)\right]$ subject to $\|{\boldsymbol{\Phi}}\|_{{\mathcal{H}}^d} \leq 1$, is given by:
+\begin{equation}
+\begin{aligned}
+{\boldsymbol{\Phi}}_{q, p}^{*}(x') = {{\mathbb{E}}}_{x \sim q}\left[k(x, x') \nabla_{x} \log p(x) + \nabla_{x} k(x, x')\right].
+\label{eq:phi_solution_prelim}
+\end{aligned}
+\end{equation}
+Here, ${\mathcal{A}}_{p}$ is the Stein operator defined as:
+\begin{equation}
+\begin{aligned}
+{\mathcal{A}}_{p} {\boldsymbol{\Phi}}(x) = \nabla_{x} \log p(x)^{\top} {\boldsymbol{\Phi}}(x) + \nabla_{x} \cdot {\boldsymbol{\Phi}}(x).
+\label{eq:stein_operator}
+\end{aligned}
+\end{equation}
+The maximum decrease rate is related to the Kernelized Stein Discrepancy (KSD):
+\begin{equation}
+\begin{aligned}
+{{\mathbb{D}}}(q,p)&=\max_{{\boldsymbol{\Phi}}\in {\mathcal{H}}^d, \|{\boldsymbol{\Phi}}\|_{{\mathcal{H}}^d} \leq 1}{{\mathbb{E}}}_{x \sim q}\left[{\mathcal{A}}_{p} {\boldsymbol{\Phi}}(x)\right] = \|{\boldsymbol{\Phi}}_{q, p}^{*}\|_{{\mathcal{H}}^d}.
+\label{eq:ksd_prelim}
+\end{aligned}
+\end{equation}
+\end{theorem}
+
+% \textit{Practical Implementation.}
+In practice, the expectation in \Eqref{eq:phi_solution_prelim} is approximated using the empirical distribution of the particles 
+$q(x) \approx \frac{1}{m} \sum_{i=1}^m \delta(x - x_i)$. 
+The update rule for each particle $x_l$ becomes a deterministic step in the direction ${\boldsymbol{\Phi}}^{*}(x_l)$:
+\begin{equation}
+\begin{aligned}
+x_l \leftarrow x_l + \epsilon {\boldsymbol{\Phi}}^{*}(x_l),
+\label{eq:svgd_update_rule}
+\end{aligned}
+\end{equation}
+where $\epsilon$ is a step size and ${\boldsymbol{\Phi}}^{*}(x_l)$ is the empirical estimate of the optimal direction:
+\begin{equation}
+\begin{aligned}
+{\boldsymbol{\Phi}}^{*}(x_l) = \frac{1}{m}\sum_{i=1}^m \left[ k(x_i, x_l) \nabla_{x_i} \log p(x_i) + \nabla_{x_i} k(x_i, x_l) \right].
+\label{eq:svgd_practical_update}
+\end{aligned}
+\end{equation}
+This update drives the particles towards the target distribution $p(x)$ by balancing two terms: the first term pushes particles towards high-probability regions of $p(x)$, while the second term acts as a repulsive force between particles, encouraging diversity and preventing collapse to a single mode.
+
+\subsection{Alternating Direction Method of Multipliers (ADMM)}
+\label{subsec:admm}
+
+The Alternating Direction Method of Multipliers (ADMM) \cite{Boyd2011} is an algorithm for solving convex optimization problems, particularly those that can be decomposed into smaller subproblems. It is well-suited for distributed consensus problems. Consider the problem of minimizing a sum of local objective functions $f_i(x_i)$ subject to a consensus constraint $x_i = z$ for all agents $i=1, \dots, N$:
+\begin{equation}
+\begin{aligned}
+\min_{x_1, \dots, x_N} & \sum_{i=1}^N f_i(x_i) \\
+\text{s.t.} \quad & x_i - z = 0, \quad \forall i.
+\label{eq:admm_consensus_problem_prelim}
+\end{aligned}
+\end{equation}
+ADMM utilizes the augmented Lagrangian ${\mathcal{L}}_{\rho}$:
+\begin{equation}
+\begin{aligned}
+{\mathcal{L}}_{\rho}(\{x_i\}, z, \{\lambda_i\}) = \sum_{i=1}^N \left( f_i(x_i) + \lambda_i^{\top} (x_i - z) + \frac{\rho}{2} \|x_i - z\|^2 \right),
+\label{eq:admm_augmented_lagrangian_prelim}
+\end{aligned}
+\end{equation}
+where $\lambda_i$ are dual variables and $\rho > 0$ is a penalty parameter. The algorithm iteratively updates the primal variables ($x_i$, $z$) and dual variables ($\lambda_i$) at iteration $k+1$ as follows:
+\begin{equation}
+\begin{aligned}
+x_i^{k+1} &= \underset{x_i}{\arg\min} {\mathcal{L}}_{\rho}(x_i, z^k, \lambda_i^k), \quad \forall i \\
+z^{k+1} &= \underset{z}{\arg\min} {\mathcal{L}}_{\rho}(\{x_i^{k+1}\}, z, \{\lambda_i^k\}) \\
+\lambda_i^{k+1} &= \lambda_i^k + \rho (x_i^{k+1} - z^{k+1}), \quad \forall i.
+\label{eq:admm_updates_prelim}
+\end{aligned}
+\end{equation}
+The $x$-updates can often be performed in parallel by each agent. The $z$-update typically involves gathering information from all agents (e.g., averaging). The dual update is also performed locally. These steps are repeated until convergence. ADMM combines the decomposability of dual ascent with the robust convergence of the method of multipliers.
+While ADMM is traditionally analyzed for convex problems, its application to non-convex problems has also been explored, often with convergence guarantees to local optima or stationary points under certain conditions \cite{Hong2016, Wang2019}. In such non-convex settings, the choice of penalty parameter $\rho$ and initialization can significantly impact performance and convergence. Our work leverages ADMM in a non-convex pose graph setting, where the underlying problem involves SE(3) manifolds.

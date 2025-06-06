@@ -1,0 +1,411 @@
+\section{二次系システムのための高次CBF}
+
+本章では，共有視野の分散CBFを実機に適用するため，ドローンのダイナミクスを考慮した高次制御バリア関数(HOCBF)付きQPの定式化について述べる．まず，SE(3)における離散ダイナミクスを導出し，次にホロノミック系とQP定式化，非ホロノミック系への拡張，さらに複数エージェント・複数特徴点の場合へと拡張する．
+
+\subsection{SE(3)における離散ダイナミクス}
+
+SE(3)における離散ダイナミクスは以下のように表される：
+\begin{equation}
+\begin{aligned}
+R_{k+1} &= R_k F_k \\
+p_{k+1} &= p_k + h R_k v_k \\
+M v_{k+1} &= F_k^\top M v_k + h \mathcal{U}_{k+1} + h f_k \\
+J \Omega_{k+1} &= F_k^\top J \Omega_k + h M v_{k+1} \times v_{k+1} + h \mathcal{M}_{k+1} + h \tau_k
+\label{eq:se3_discrete_dynamics}
+\end{aligned}
+\end{equation}
+ここで，$R_k \in \mathrm{SO}(3)$は回転行列，$p_k \in \mathbb{R}^3$は位置ベクトル，$v_k \in \mathbb{R}^3$は並進速度ベクトル，$\Omega_k \in \mathbb{R}^3$は角速度ベクトル，$F_k \in \mathrm{SO}(3)$は回転の更新行列，$M \in \mathbb{R}^{3 \times 3}$は質量行列，$J \in \mathbb{R}^{3 \times 3}$は慣性モーメント行列，$\mathcal{U}(p, R) = -R^\top \frac{\partial U}{\partial p}(p, R)$と$\mathcal{M}(p, R)^\times = \frac{\partial U}{\partial R}^\top R - R^\top \frac{\partial U}{\partial R}$はポテンシャルエネルギー$U$から導出される力とトルク，$f_k \in \mathbb{R}^3$は外力，$\tau_k \in \mathbb{R}^3$は外部トルク，$h$はサンプリング時間である．
+
+重力ポテンシャルを$U = mgp_z$とすると，$\mathcal{U} = mgR^\top e_z$，$\mathcal{M} = 0$となる．また，一般的な近似として，$F_k \simeq \exp(h\Omega_k^\times) \simeq I + h\Omega_k^\times$を用いる．
+
+並進運動について，\Eqref{eq:se3_discrete_dynamics}の第3式を展開すると：
+\begin{equation}
+\begin{aligned}
+M v_{k+1} &= F_k^\top M v_k + h \mathcal{U}_{k+1} + h f_k \\
+&= M v_k + h (M v_k \times \Omega_k - M g R^\top e_z + f_k)
+\label{eq:translation_dynamics}
+\end{aligned}
+\end{equation}
+
+回転運動について，後述する非ホロノミック系に対応するため，以下のような近似を行う：
+\begin{equation}
+\begin{aligned}
+R_{k+1} &= R_k F_k \simeq R_k F_{k+1} \\
+p_{k+1} &= p_k + h R_k v_k \simeq p_k + h R_{k+1} v_{k+1}
+\label{eq:approximation}
+\end{aligned}
+\end{equation}
+
+この近似の下で，姿勢更新は以下のようになる：
+\begin{equation}
+\begin{aligned}
+J \Omega_{k+1} &= F_k^\top J \Omega_k + \underbrace{h M v_{k+1} \times v_{k+1}}_{\simeq 0} + \underbrace{h \mathcal{M}_{k+1}}_{= 0} + h \tau_k \\
+&= J \Omega_k + \underbrace{h J \Omega_k \times \Omega_k}_{\simeq 0} + h \tau_k \\
+R_{k+1} &= R_k + h R_k \Omega_{k+1}^\times \\
+&= R_k + h R_k [\Omega_k + h J^{-1} \tau_k]_\times \\
+&= R_k + h R_k \Omega_k^\times + h^2 R_k [J^{-1} \tau_k]_\times
+\label{eq:rotation_dynamics}
+\end{aligned}
+\end{equation}
+
+位置更新は以下のようになる：
+\begin{equation}
+\begin{aligned}
+p_{k+1} &= p_k + h R_{k+1} v_{k+1} \\
+&= p_k + h (R_k + h R_k \Omega_{k+1}^\times) (v_k + h (v_k \times \Omega_k - g R_k^\top e_z + M^{-1} f_k)) \\
+&= p_k + h R_k v_k + h^2 (-g e_z + R_k M^{-1} f_k) + h^3 [J^{-1} \tau_k]_\times v_k + \mathcal{O}(h^4)
+\label{eq:position_dynamics}
+\end{aligned}
+\end{equation}
+
+これにより，逐次ステップでトルク$\tau_k$と力$f_k$によって状態$(p_{k+1}, R_{k+1}) \in \mathrm{SE}(3)$を操作可能になる．
+
+\subsection{ホロノミック系とQP定式化}
+
+まず，$f = (f_x, f_y, f_z) \in \mathbb{R}^3$(ホロノミック系)におけるHOCBF-QPを考える．
+
+目標位置$p^d_k$と現在位置$p_{k+1}$の誤差を以下のように定義する：
+\begin{equation}
+\begin{aligned}
+p^d_k - p_{k+1} &= \underbrace{p^d_k - p_k - h R_k v_k}_{e_k} - h^2 (-g e_z + R_k M^{-1} f_k) - h^3 [J^{-1} \tau_k]_\times v_k \\
+&= \underbrace{e_k + h^2 g e_z}_{\tilde{e}_k} - h^2 M^{-1} R_k f_k + h^3 v_k^\times J^{-1} \tau_k \\
+&= \tilde{e}_k + A_f f_k + A_\tau \tau_k \\
+&= \tilde{e}_k + \begin{bmatrix} A_f & A_\tau \end{bmatrix} \begin{bmatrix} f_k \\ \tau_k \end{bmatrix} \\
+&= \tilde{e}_k + A u_k
+\label{eq:error}
+\end{aligned}
+\end{equation}
+ここで，$A_f = -h^2 M^{-1} R_k$，$A_\tau = h^3 v_k^\times J^{-1}$，$u_k = [f_k^\top, \tau_k^\top]^\top$である．
+
+最小化したい目的関数は以下のようになる：
+\begin{equation}
+\begin{aligned}
+J &= \frac{1}{2} \|\tilde{e}_k + A u_k\|^2 + \frac{1}{2} \begin{bmatrix} A_g + M^{-1} f_k \\ J^{-1} \tau_k \end{bmatrix}^\top B \begin{bmatrix} A_g + M^{-1} f_k \\ J^{-1} \tau_k \end{bmatrix} \\
+&\propto \frac{1}{2} u_k^\top A^\top A u_k + (A^\top \tilde{e}_k)^\top u_k \\
+&\quad + \frac{1}{2} u_k^\top \underbrace{\begin{bmatrix} M^{-2} B_1 & 0 \\ 0 & (J^{-1})^\top B_2 J^{-1} \end{bmatrix}}_{B'_1 \in \mathbb{R}^{6 \times 6}} u_k + \underbrace{\begin{bmatrix} M^{-1} B_1 A_g^\top e_z \\ 0 \end{bmatrix}^\top}_{B'_2 \in \mathbb{R}^6} u_k \\
+&\propto \frac{1}{2} u_k^\top (A^\top A + B'_1) u_k + (A^\top \tilde{e}_k + B'_2)^\top u_k
+\label{eq:objective}
+\end{aligned}
+\end{equation}
+ここで，$A_g = v_k^\times \Omega_k - g R_k^\top e_z$である．
+
+よって，解くべきQP問題は以下のようになる：
+\begin{equation}
+\begin{aligned}
+\min_{u_k} \quad & \frac{1}{2} u_k^\top (A^\top A + B'_1) u_k + (A^\top \tilde{e}_k + B'_2)^\top u_k \\
+\mathrm{s.t.} \quad & C u_k \leq b
+\label{eq:holonomic_qp}
+\end{aligned}
+\end{equation}
+ここで，
+\begin{equation}
+\begin{aligned}
+u_k &= \begin{bmatrix} f_k \\ \tau_k \end{bmatrix} \in \mathbb{R}^6 \\
+A &= \begin{bmatrix} -h^2 M^{-1} R_k & h^3 v_k^\times J^{-1} \end{bmatrix} \in \mathbb{R}^{3 \times 6} \\
+B'_1 &= \begin{bmatrix} M^{-2} B_1 & 0 \\ 0 & (J^{-1})^\top B_2 J^{-1} \end{bmatrix} \in \mathbb{R}^{6 \times 6} \\
+B'_2 &= \begin{bmatrix} M^{-1} B_1 A_g^\top e_z \\ 0 \end{bmatrix} \in \mathbb{R}^6 \\
+\tilde{e}_k &= p^d_k - p_k - h R_k v_k + h^2 g e_z
+\label{eq:holonomic_qp_params}
+\end{aligned}
+\end{equation}
+である．$C$と$b$は安全制約から導出される．
+
+\subsection{単一の特徴点を追従するHOCBF制約}
+
+単一の特徴点$q_l$を追従する安全制約について考える．安全集合を以下のように定義する：
+\begin{equation}
+\begin{aligned}
+h = \beta_l^\top(p_i) R_i e_c - \cos\Psi_{\mathcal{F}}
+\label{eq:single_hocbf_safe_set}
+\end{aligned}
+\end{equation}
+
+安全集合の2階微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\ddot{h} &= \underbrace{-\frac{e_c^\top R^\top P_\beta R}{d} \dot{v}}_{\langle \mathrm{grad}_p h, \dot{v} \rangle} + \underbrace{\frac{d}{dt}\left(-\frac{e_c^\top R^\top P_\beta R}{d}\right) v}_{\langle \mathrm{Hess}_p h[v], v \rangle + \langle \mathrm{Hess}_p h[v], \Omega \rangle} \\
+&\quad + \underbrace{\left(\frac{P_\beta}{d} R v\right)^\top R e_c^\times \Omega}_{\langle \mathrm{Hess}_R h[\Omega], v \rangle} + \underbrace{-\beta^\top R \Omega^\times e_c^\times \Omega}_{\langle \mathrm{Hess}_R h[\Omega], \Omega \rangle} + \underbrace{-\beta^\top R e_c^\times \dot{\Omega}}_{\langle \mathrm{grad}_R h, \dot{\Omega} \rangle} \\
+&= \langle \mathrm{grad}_p h, \dot{v} \rangle + \langle \mathrm{Hess}_p h[v], v \rangle + \langle \mathrm{Hess}_p h[v], \Omega \rangle \\
+&\quad + \langle \mathrm{grad}_R h, \dot{\Omega} \rangle + \langle \mathrm{Hess}_R h[\Omega], v \rangle + \langle \mathrm{Hess}_R h[\Omega], \Omega \rangle
+\label{eq:single_hocbf_derivative}
+\end{aligned}
+\end{equation}
+ここで，
+\begin{equation}
+\begin{aligned}
+\langle \mathrm{Hess}_p h[v], \Omega \rangle &= \langle \mathrm{Hess}_R h[\Omega], v \rangle = v^\top R^\top \frac{P_\beta R e_c^\times}{d} \Omega, \\
+\langle \mathrm{Hess}_R h[\Omega], \Omega \rangle &= \Omega^\top [R^\top \beta]_\times e_c^\times \Omega, \\
+\mathrm{grad}_p h &= -\frac{e_c^\top R^\top P_\beta R}{d}, \\
+\mathrm{grad}_R h &= -\beta^\top R e_c^\times
+\label{eq:hessian_gradient}
+\end{aligned}
+\end{equation}
+である．
+
+また，
+\begin{equation}
+\begin{aligned}
+\frac{d}{dt}\left(-\frac{e_c^\top R^\top P_\beta R}{d}\right) v &= \underbrace{v^\top R^\top \frac{P_\beta R e_c^\times}{d} \Omega}_{\langle \mathrm{Hess}_p h[v], \Omega \rangle} - \frac{z^\top \dot{P}_\beta}{d} R v - \frac{z^\top P_\beta}{d} R \Omega^\times v - v^\top R^\top \frac{P_\beta z \beta^\top}{d^2} R v \\
+&= \langle \mathrm{Hess}_p h[v], \Omega \rangle \\
+&\quad \underbrace{- v^\top R^\top \frac{\beta (z^\top P_\beta) + (z^\top \beta) P_\beta + P_\beta z \beta^\top}{d^2} R v - \frac{z^\top P_\beta}{d} R \Omega^\times v}_{\langle \mathrm{Hess}_p h[v], v \rangle} \\
+&= \langle \mathrm{Hess}_p h[v], v \rangle + \langle \mathrm{Hess}_p h[v], \Omega \rangle
+\label{eq:hessian_p_derivative}
+\end{aligned}
+\end{equation}
+ここで，$z = R e_c$である．
+
+$\dot{v}$と$\dot{\Omega}$を制御入力$u_k = [f_k^\top, \tau_k^\top]^\top$で表すと：
+\begin{equation}
+\begin{aligned}
+\dot{v} &\simeq v^\times \Omega - g R^\top e_z + M^{-1} f_k \\
+\dot{\Omega} &\simeq J^{-1} \tau_k
+\label{eq:acceleration}
+\end{aligned}
+\end{equation}
+
+これらを用いて，2次系におけるHOCBF制約は以下のようになる：
+\begin{equation}
+\begin{aligned}
+&\underbrace{-\beta^\top R e_c^\times J^{-1} \tau_k}_{\langle \mathrm{grad}_R h, \dot{\Omega} \rangle} + \underbrace{-\frac{e_c^\top R^\top P_\beta R}{d} (v^\times \Omega - g R^\top e_z + M^{-1} f_k)}_{\langle \mathrm{grad}_p h, \dot{v} \rangle} \\
+&+ \underbrace{v^\top R^\top \frac{P_\beta R e_c^\times}{d} \Omega}_{\langle \mathrm{Hess}_p h[v], \Omega \rangle} \\
+&+ \underbrace{-v^\top R^\top \frac{\beta (z^\top P_\beta) + (z^\top \beta) P_\beta + P_\beta z \beta^\top}{d^2} R v - \frac{z^\top P_\beta}{d} R \Omega^\times v}_{\langle \mathrm{Hess}_p h[v], v \rangle} \\
+&+ \underbrace{-\beta^\top R \Omega^\times e_c^\times \Omega}_{\langle \mathrm{Hess}_R h[\Omega], \Omega \rangle} + \underbrace{\left(\frac{P_\beta}{d} R v\right)^\top R e_c^\times \Omega}_{\langle \mathrm{Hess}_R h[\Omega], v \rangle} \\
+&+ 2\gamma_0 \left(\underbrace{-\beta^\top R e_c^\times \Omega}_{\langle \mathrm{grad}_R h, \Omega \rangle} + \underbrace{-\frac{e_c^\top R^\top P_\beta R}{d} v}_{\langle \mathrm{grad}_p h, v \rangle}\right) + \gamma_0^2 (\beta_l^\top R e_c - \cos\Psi_{\mathcal{F}}) \geq 0
+\label{eq:single_hocbf_constraint}
+\end{aligned}
+\end{equation}
+ここで，$\gamma_0 > 0$は定数である．
+
+したがって，HOCBF制約付きQPは以下のように定式化される：
+\begin{equation}
+\begin{aligned}
+\min_{u_k} \quad & \frac{1}{2} u_k^\top (A^\top A + B'_1) u_k + (A^\top \tilde{e}_k + B'_2)^\top u_k \\
+\mathrm{s.t.} \quad & C u_k \leq b
+\label{eq:single_hocbf_qp}
+\end{aligned}
+\end{equation}
+ここで，
+\begin{equation}
+\begin{aligned}
+C &= \begin{bmatrix} \frac{e_c^\top R^\top P_\beta R}{d} M^{-1} & \beta^\top R e_c^\times J^{-1} \end{bmatrix} \in \mathbb{R}^{1 \times 6} \\
+b &= \langle \mathrm{Hess}_p h[v], \Omega \rangle + \langle \mathrm{Hess}_p h[v], v \rangle + \langle \mathrm{Hess}_R h[\Omega], v \rangle + \langle \mathrm{Hess}_R h[\Omega], \Omega \rangle \\
+&\quad + 2\gamma_0 (\langle \mathrm{grad}_R h, \Omega \rangle + \langle \mathrm{grad}_p h, v \rangle) + \gamma_0^2 (\beta_l^\top R e_c - \cos\Psi_{\mathcal{F}}) \\
+&\quad - \frac{e_c^\top R^\top P_\beta R}{d} (v^\times \Omega - g R^\top e_z)
+\label{eq:single_hocbf_qp_params}
+\end{aligned}
+\end{equation}
+である．
+
+\subsection{非ホロノミック系への拡張}
+
+実際のドローンは非ホロノミック系であり，力は機体の$z$軸方向にしか発生できない．そこで，$f_k \mapsto f_k e_z$，$f_k \in \mathbb{R}$とする．この場合，制御入力は$u_k = [f_k, \tau_k^\top]^\top \in \mathbb{R}^4$となる．
+
+非ホロノミック系におけるHOCBF制約付きQPは以下のように定式化される：
+\begin{equation}
+\begin{aligned}
+\min_{u_k} \quad & \frac{1}{2} u_k^\top (A^\top A + B'_1) u_k + (A^\top \tilde{e}_k + B'_2)^\top u_k \\
+\mathrm{s.t.} \quad & C u_k \leq b
+\label{eq:nonholonomic_qp}
+\end{aligned}
+\end{equation}
+ここで，
+\begin{equation}
+\begin{aligned}
+u_k &= \begin{bmatrix} f_k \\ \tau_k \end{bmatrix} \in \mathbb{R}^4 \\
+A &= \begin{bmatrix} -h^2 M^{-1} R_k e_z & h^3 v_k^\times J^{-1} \end{bmatrix} \in \mathbb{R}^{3 \times 4} \\
+B'_1 &= \begin{bmatrix} M^{-2} b_1 & 0 \\ 0 & (J^{-1})^\top B_2 J^{-1} \end{bmatrix} \in \mathbb{R}^{4 \times 4} \\
+B'_2 &= \begin{bmatrix} M^{-1} b_1 A_g^\top e_z \\ 0 \end{bmatrix} \in \mathbb{R}^4 \\
+\tilde{e}_k &= p^d_k - p_k - h R_k v_k + h^2 g e_z \\
+C &= \begin{bmatrix} \frac{e_c^\top R^\top P_\beta R}{d} e_z M^{-1} & \beta^\top R e_c^\times J^{-1} \end{bmatrix} \in \mathbb{R}^{1 \times 4} \\
+b &= \langle \mathrm{Hess}_p h[v], \Omega \rangle + \langle \mathrm{Hess}_p h[v], v \rangle + \langle \mathrm{Hess}_R h[\Omega], v \rangle + \langle \mathrm{Hess}_R h[\Omega], \Omega \rangle \\
+&\quad + 2\gamma_0 (\langle \mathrm{grad}_R h, \Omega \rangle + \langle \mathrm{grad}_p h, v \rangle) + \gamma_0^2 (\beta_l^\top R e_c - \cos\Psi_{\mathcal{F}}) \\
+&\quad - \frac{e_c^\top R^\top P_\beta R}{d} (v^\times \Omega - g R^\top e_z)
+\label{eq:nonholonomic_qp_params}
+\end{aligned}
+\end{equation}
+である．
+
+\subsection{複数特徴点・複数エージェントの場合}
+
+複数の特徴点を追従する場合，前章で導出した確率的CBFを高次CBFに拡張する．安全集合を以下のように定義する：
+\begin{equation}
+\begin{aligned}
+B_i &= 1 - q - \eta_i \\
+\eta_i &= \prod_{l \in \mathcal{L}} (1 - \phi_i^l)
+\label{eq:multi_hocbf_safe_set}
+\end{aligned}
+\end{equation}
+
+安全集合の1階微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\dot{B}_i &= -\dot{\eta}_i \\
+&= -\frac{d}{dt} \prod_{l \in \mathcal{L}} (1 - \phi_i^l) \\
+&= \sum_{l \in \mathcal{L}} \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \dot{\phi}_i^l
+\label{eq:multi_hocbf_derivative}
+\end{aligned}
+\end{equation}
+
+安全集合の2階微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\ddot{B}_i &= \frac{d}{dt} \dot{B}_i \\
+&= \frac{d}{dt} \left(\sum_{l \in \mathcal{L}} \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \dot{\phi}_i^l\right) \\
+&= \sum_{l \in \mathcal{L}} \frac{d}{dt} \left(\left(\prod_{k \neq l} (1 - \phi_i^k)\right) \dot{\phi}_i^l\right) \\
+&= \sum_{l \in \mathcal{L}} \left(\frac{d}{dt} \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \dot{\phi}_i^l + \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \ddot{\phi}_i^l\right) \\
+&= \sum_{l \in \mathcal{L}} \left(-\sum_{j \neq l} \left(\prod_{m \neq j, l} (1 - \phi_i^m)\right) \dot{\phi}_i^j \dot{\phi}_i^l + \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \ddot{\phi}_i^l\right)
+\label{eq:multi_hocbf_second_derivative}
+\end{aligned}
+\end{equation}
+
+$\ddot{\phi}_i^l$は$P_i^l$の2階微分であり，以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\ddot{\phi}_i^l &= 
+\begin{cases}
+\ddot{P}_i^l & \text{if } q_l \in \mathcal{C}_i \\
+0 & \text{if } q_l \in \mathcal{L} \setminus \mathcal{C}_i
+\end{cases} \\
+\ddot{P}_i^l &= \frac{d}{dt} \dot{P}_i^l \\
+&= \frac{d}{dt} \langle \mathrm{grad}\:P_i^l, \xi_W \rangle \\
+&= \langle \mathrm{Hess}\:P_i^l[\xi_W], \xi_W \rangle + \langle \mathrm{grad}\:P_i^l, \dot{\xi}_W \rangle
+\label{eq:multi_probability_second_derivative}
+\end{aligned}
+\end{equation}
+
+ここで，$\mathrm{Hess}\:P_i^l$は$P_i^l$のヘッシアン行列であり，$\dot{\xi}_W$は制御入力に依存する項である．$\mathrm{Hess}\:P_i^l$は以下のように分解できる：
+\begin{equation}
+\begin{aligned}
+\langle \mathrm{Hess}\:P_i^l[\xi_W], \xi_W \rangle &= \langle \mathrm{Hess}_p\:P_i^l[v], v \rangle + \langle \mathrm{Hess}_p\:P_i^l[v], \Omega \rangle + \langle \mathrm{Hess}_R\:P_i^l[\Omega], v \rangle + \langle \mathrm{Hess}_R\:P_i^l[\Omega], \Omega \rangle
+\label{eq:multi_hessian}
+\end{aligned}
+\end{equation}
+
+また，$\langle \mathrm{grad}\:P_i^l, \dot{\xi}_W \rangle$は以下のように分解できる：
+\begin{equation}
+\begin{aligned}
+\langle \mathrm{grad}\:P_i^l, \dot{\xi}_W \rangle &= \langle \mathrm{grad}_p\:P_i^l, \dot{v} \rangle + \langle \mathrm{grad}_R\:P_i^l, \dot{\Omega} \rangle
+\label{eq:multi_grad_derivative}
+\end{aligned}
+\end{equation}
+
+これらを用いて，複数特徴点を追従するためのHOCBF制約は以下のように表される：
+\begin{equation}
+\begin{aligned}
+\ddot{B}_i + \gamma_1 \dot{B}_i + \gamma_0 B_i \geq 0
+\label{eq:multi_hocbf_constraint}
+\end{aligned}
+\end{equation}
+ここで，$\gamma_0, \gamma_1 > 0$は定数である．
+
+この制約を展開すると：
+\begin{equation}
+\begin{aligned}
+&\sum_{l \in \mathcal{L}} \left(-\sum_{j \neq l} \left(\prod_{m \neq j, l} (1 - \phi_i^m)\right) \dot{\phi}_i^j \dot{\phi}_i^l + \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \ddot{\phi}_i^l\right) \\
+&+ \gamma_1 \sum_{l \in \mathcal{L}} \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \dot{\phi}_i^l \\
+&+ \gamma_0 (1 - q - \prod_{l \in \mathcal{L}} (1 - \phi_i^l)) \geq 0
+\label{eq:multi_hocbf_constraint_expanded}
+\end{aligned}
+\end{equation}
+
+制御入力$u_k = [f_k, \tau_k^\top]^\top$に依存する項は$\ddot{\phi}_i^l$の中の$\langle \mathrm{grad}_p\:P_i^l, \dot{v} \rangle$と$\langle \mathrm{grad}_R\:P_i^l, \dot{\Omega} \rangle$である．これらを制御入力について整理すると：
+\begin{equation}
+\begin{aligned}
+\langle \mathrm{grad}_p\:P_i^l, \dot{v} \rangle &= \frac{1}{1 - \cos\Psi_{\mathcal{F}}} \left(-\frac{e_c^\top R_i^\top P_{\beta_l}}{d}\right) \dot{v} \\
+\langle \mathrm{grad}_R\:P_i^l, \dot{\Omega} \rangle &= \frac{1}{1 - \cos\Psi_{\mathcal{F}}} (-\beta_l^\top(p_i) R_i [e_c]_\times) \dot{\Omega}
+\label{eq:multi_grad_input}
+\end{aligned}
+\end{equation}
+
+$\dot{v}$と$\dot{\Omega}$を制御入力$u_k = [f_k, \tau_k^\top]^\top$で表すと：
+\begin{equation}
+\begin{aligned}
+\dot{v} &= v^\times \Omega - g R^\top e_z + M^{-1} f_k \\
+\dot{\Omega} &= J^{-1} \tau_k
+\label{eq:multi_acceleration}
+\end{aligned}
+\end{equation}
+
+これらを代入して整理すると，以下のような制約付きQPが得られる：
+\begin{equation}
+\begin{aligned}
+\min_{u_k} \quad & \frac{1}{2} u_k^\top (A^\top A + B'_1) u_k + (A^\top \tilde{e}_k + B'_2)^\top u_k \\
+\mathrm{s.t.} \quad & C_{\mathrm{multi}} u_k \geq b_{\mathrm{multi}}
+\label{eq:multi_hocbf_qp}
+\end{aligned}
+\end{equation}
+
+ここで，
+\begin{equation}
+\begin{aligned}
+C_{\mathrm{multi}} &= \begin{bmatrix}
+\sum_{l \in \mathcal{L} \cap \mathcal{C}_i} \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \frac{e_c^\top R_i^\top P_{\beta_l}}{(1 - \cos\Psi_{\mathcal{F}}) d} & \sum_{l \in \mathcal{L} \cap \mathcal{C}_i} \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \frac{\beta_l^\top(p_i) R_i [e_c]_\times}{1 - \cos\Psi_{\mathcal{F}}} J^{-1}
+\end{bmatrix} \\
+b_{\mathrm{multi}} &= -\sum_{l \in \mathcal{L}} \left(-\sum_{j \neq l} \left(\prod_{m \neq j, l} (1 - \phi_i^m)\right) \dot{\phi}_i^j \dot{\phi}_i^l + \left(\prod_{k \neq l} (1 - \phi_i^k)\right) (\langle \mathrm{Hess}\:P_i^l[\xi_W], \xi_W \rangle)\right) \\
+&\quad - \gamma_1 \sum_{l \in \mathcal{L}} \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \dot{\phi}_i^l \\
+&\quad - \gamma_0 (1 - q - \prod_{l \in \mathcal{L}} (1 - \phi_i^l)) \\
+&\quad + \sum_{l \in \mathcal{L} \cap \mathcal{C}_i} \left(\prod_{k \neq l} (1 - \phi_i^k)\right) \frac{e_c^\top R_i^\top P_{\beta_l}}{(1 - \cos\Psi_{\mathcal{F}}) d} (v^\times \Omega - g R^\top e_z)
+\label{eq:multi_hocbf_qp_params}
+\end{aligned}
+\end{equation}
+である．
+
+複数エージェントが共通の特徴点を追従する場合も同様に，前章で導出した確率的CBFを高次CBFに拡張できる．安全集合を以下のように定義する：
+\begin{equation}
+\begin{aligned}
+B_{ij} &= 1 - q - \eta_{ij} \\
+\eta_{ij} &= \prod_{l \in \mathcal{L}} (1 - \phi_{ij}^l)
+\label{eq:common_hocbf_safe_set}
+\end{aligned}
+\end{equation}
+
+安全集合の1階微分と2階微分は，複数特徴点の場合と同様に計算できる．ただし，$\phi_{ij}^l$の定義が異なる：
+\begin{equation}
+\begin{aligned}
+\phi_{ij}^l = 
+\begin{cases}
+P_i^l P_j^l & \text{if } q_l \in \mathcal{C}_i \cap \mathcal{C}_j \\
+0 & \text{if } q_l \in \mathcal{L} \setminus (\mathcal{C}_i \cap \mathcal{C}_j)
+\end{cases}
+\label{eq:common_probability_hocbf}
+\end{aligned}
+\end{equation}
+
+$\phi_{ij}^l$の1階微分と2階微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\dot{\phi}_{ij}^l &= 
+\begin{cases}
+\dot{P}_i^l P_j^l + P_i^l \dot{P}_j^l & \text{if } q_l \in \mathcal{C}_i \cap \mathcal{C}_j \\
+0 & \text{if } q_l \in \mathcal{L} \setminus (\mathcal{C}_i \cap \mathcal{C}_j)
+\end{cases} \\
+\ddot{\phi}_{ij}^l &= 
+\begin{cases}
+\ddot{P}_i^l P_j^l + 2 \dot{P}_i^l \dot{P}_j^l + P_i^l \ddot{P}_j^l & \text{if } q_l \in \mathcal{C}_i \cap \mathcal{C}_j \\
+0 & \text{if } q_l \in \mathcal{L} \setminus (\mathcal{C}_i \cap \mathcal{C}_j)
+\end{cases}
+\label{eq:common_probability_derivative_hocbf}
+\end{aligned}
+\end{equation}
+
+これらを用いて，複数エージェントが共通の特徴点を追従するためのHOCBF制約は以下のように表される：
+\begin{equation}
+\begin{aligned}
+\ddot{B}_{ij} + \gamma_1 \dot{B}_{ij} + \gamma_0 B_{ij} \geq 0
+\label{eq:common_hocbf_constraint}
+\end{aligned}
+\end{equation}
+
+この制約を展開し，制御入力$u_i = [f_i, \tau_i^\top]^\top$と$u_j = [f_j, \tau_j^\top]^\top$について整理すると，以下のような制約付きQPが得られる：
+\begin{equation}
+\begin{aligned}
+\min_{u_i, u_j} \quad & \frac{1}{2} u_i^\top (A_i^\top A_i + B'_{1,i}) u_i + (A_i^\top \tilde{e}_i + B'_{2,i})^\top u_i \\
+&+ \frac{1}{2} u_j^\top (A_j^\top A_j + B'_{1,j}) u_j + (A_j^\top \tilde{e}_j + B'_{2,j})^\top u_j \\
+\mathrm{s.t.} \quad & C_i u_i + C_j u_j \geq b_{ij}
+\label{eq:common_hocbf_qp}
+\end{aligned}
+\end{equation}
+
+ここで，$C_i$，$C_j$，$b_{ij}$は複雑な式になるため，詳細は省略する．
+
+このように，二次系システムにおいても，高次制御バリア関数(HOCBF)を用いることで，共有視野を保証する制御入力を設計することができる．特に，非ホロノミックなドローンダイナミクスに対応するため，SE(3)上の離散ダイナミクスを考慮したHOCBF-QPを定式化した．また，複数特徴点・複数エージェントの場合にも拡張可能であることを示した．

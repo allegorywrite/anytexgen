@@ -1,0 +1,350 @@
+\section{共有視野のためのCBF}
+
+本章では，共有視野を保証するための制御バリア関数(CBF)を設計する．まず単一の特徴点を追従する場合の安全制約を導出し，次に複数の特徴点を追従する場合，さらに複数のエージェントが共通の特徴点を追従する場合へと拡張する．最後に，分散型実装について述べる．
+
+\subsection{単一特徴点追従の安全制約}
+
+単一の特徴点$q_l \in \mathcal{L}$を追従する安全制約について考える．前章で述べたように，特徴点$q_l$がエージェント$i$の視野内にある条件は以下のように表される：
+\begin{equation}
+\begin{aligned}
+q_l \in \mathcal{C}_i \iff \beta_l^{\top}(p_i)R_ie_c - \cos\Psi_{\mathcal{F}} > 0
+\label{eq:single_fov_condition}
+\end{aligned}
+\end{equation}
+
+この条件に基づいて，安全集合を以下のように定義する：
+\begin{equation}
+\begin{aligned}
+B_i = \beta_l^{\top}(p_i)R_ie_c - \cos\Psi_{\mathcal{F}}
+\label{eq:single_safe_set}
+\end{aligned}
+\end{equation}
+
+CBFの条件を適用するためには，$B_i$の時間微分を計算する必要がある．$B_i$の時間微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\dot{B}_i &= \langle \mathrm{grad}_R\:B_i, \omega_i \rangle + \langle \mathrm{grad}_p\:B_i, v_i \rangle \\
+&= -\beta_l^\top(p_i) R_i [e_c]_\times\omega_i - \frac{e_c^\top R_i^\top P_{\beta_l}}{d_{i,l}}v_i
+\label{eq:single_cbf_derivative}
+\end{aligned}
+\end{equation}
+ここで，$d_{i,l} = \|q_l-p_i\|$は特徴点$q_l$とエージェント$i$の距離，$P_{\beta_l} = I - \beta_l\beta_l^\top$は$\beta_l$に直交する平面への投影行列である．
+
+CBFの条件より，安全制約は以下のように表される：
+\begin{equation}
+\begin{aligned}
+-\beta_l^\top(p_i) R_i [e_c]_\times\omega_i - \frac{e_c^\top R_i^\top P_{\beta_l}}{d_{i,l}}v_i \leq \gamma (B_i)
+\label{eq:single_cbf_constraint}
+\end{aligned}
+\end{equation}
+ここで，$\gamma$は拡張クラス$\mathcal{K}$関数であり，通常は$\gamma(B_i) = \gamma_0 B_i$($\gamma_0 > 0$は定数)のように線形関数を用いる．
+
+CBF制約を満たしつつ，目標位置$p_i^d$に追従するためのQP問題は以下のように定式化できる：
+\begin{equation}
+\begin{aligned}
+\min_{\xi_i} \quad & (p^d_i - p_i - hv_i)^\top Q_1 (p^d_i - p_i - hv_i) + \xi_i^\top Q_2 \xi_i \\
+\mathrm{s.t.} \quad & -\beta_l^\top(p_i) R_i [e_c]_\times\omega_i - \frac{e_c^\top R_i^\top P_{\beta_l}}{d_{i,l}}v_i \leq \gamma_0 (\beta_l^{\top}(p_i)R_ie_c - \cos\Psi_{\mathcal{F}})
+\label{eq:single_cbf_qp}
+\end{aligned}
+\end{equation}
+ここで，$\xi_i = [\omega_i^\top, v_i^\top]^\top$は制御入力，$Q_1$と$Q_2$は正定値重み行列，$h$はサンプリング時間である．
+
+一般的なQP形式に変換すると，以下のように表せる：
+\begin{equation}
+\begin{aligned}
+\min_{\xi_i} \quad & \frac{1}{2}\xi_i^\top H_i \xi_i + f_i^\top \xi_i \\
+\mathrm{s.t.} \quad & A_i \xi_i \leq b_i
+\label{eq:single_cbf_qp_standard}
+\end{aligned}
+\end{equation}
+ここで，
+\begin{equation}
+\begin{aligned}
+\xi_i &= \begin{bmatrix} \omega_i \\ v_i \end{bmatrix}, \\
+H_i &= 2\begin{bmatrix} Q_{2,\omega} & Q_{2,\omega v} \\ Q_{2,\omega v}^\top & Q_{2,v} + h^2 R_i^\top Q_1 R_i \end{bmatrix}, \\
+f_i &= \begin{bmatrix} 0 \\ -2h R_i^\top Q_1 e_i \end{bmatrix}, \quad e_i = p^d_i - p_i, \\
+A_i &= \begin{bmatrix} \beta_l^\top(p_i) R_i [e_c]_\times & \frac{e_c^\top R_i^\top P_{\beta_l}}{d_{i,l}} \end{bmatrix}, \\
+b_i &= \gamma_0 (\beta_l^{\top}(p_i)R_ie_c - \cos\Psi_{\mathcal{F}})
+\label{eq:single_cbf_qp_params}
+\end{aligned}
+\end{equation}
+である．
+
+\subsection{複数特徴点追従の安全制約}
+
+次に，複数の特徴点を追従する場合の安全制約について考える．単純に各特徴点に対して個別のCBF制約を課すことも可能だが，制約の数が増えると計算負荷が高くなる．そこで，複数の特徴点の可視性を統合した確率的CBFを提案する．
+
+特徴点$q_l \in \mathcal{L}$によってエージェント$i$における推定が成り立っている確率を以下のように定義する：
+\begin{equation}
+\begin{aligned}
+\phi_i^l = P(p_i, R_i, q_l) = 
+\begin{cases}
+P_i^l & \text{if } q_l \in \mathcal{C}_i \\
+0 & \text{if } q_l \in \mathcal{L} \setminus \mathcal{C}_i
+\end{cases}
+\label{eq:multi_probability}
+\end{aligned}
+\end{equation}
+ここで，$P_i^l$は特徴点$q_l$がエージェント$i$の視野内にある確率であり，以下のように定義する：
+\begin{equation}
+\begin{aligned}
+P_i^l = \frac{\beta_l^\top(p_i) R_i e_c - \cos\Psi_{\mathcal{F}}}{1 - \cos\Psi_{\mathcal{F}}}
+\label{eq:visibility_probability}
+\end{aligned}
+\end{equation}
+この確率は，特徴点がカメラの光軸に近いほど高くなり，視野角の境界では0になる．
+
+環境内の特徴点$q_l \in \mathcal{L}$によってエージェント$i$における推定が達成される確率を$q$以上に制限するため，以下の安全集合を定義する：
+\begin{equation}
+\begin{aligned}
+B_i &= 1 - q - \eta_i \\
+\eta_i &= \prod_{l \in \mathcal{L}} (1 - \phi_i^l)
+\label{eq:multi_safe_set}
+\end{aligned}
+\end{equation}
+ここで，$\eta_i$はエージェント$i$がどの特徴点も観測できない確率を表す．したがって，$1 - \eta_i$は少なくとも1つの特徴点を観測できる確率であり，$B_i > 0$は少なくとも1つの特徴点を観測できる確率が$q$よりも大きいことを意味する．
+
+$B_i$の時間微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\dot{B}_i &= -\dot{\eta}_i \\
+&= -\frac{d}{dt}\prod_{l \in \mathcal{L}}(1 - \phi_i^l) \\
+&= \sum_{l \in \mathcal{L}}\left(\prod_{k \neq l}(1 - \phi_i^k)\right)\dot{\phi}_i^l
+\label{eq:multi_cbf_derivative}
+\end{aligned}
+\end{equation}
+
+$\phi_i^l$の時間微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\dot{\phi}_i^l = 
+\begin{cases}
+\dot{P}_i^l & \text{if } q_l \in \mathcal{C}_i \\
+0 & \text{if } q_l \in \mathcal{L} \setminus \mathcal{C}_i
+\end{cases}
+\label{eq:multi_probability_derivative}
+\end{aligned}
+\end{equation}
+
+$P_i^l$の微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\dot{P}_i^l &= \langle \mathrm{grad}\:P_i^l, \xi_{W,i} \rangle \\
+&= \left\langle 
+\begin{bmatrix}
+\mathrm{grad}_R\:P_i^l \\
+\mathrm{grad}_p\:P_i^l
+\end{bmatrix},
+\begin{bmatrix}
+\omega_i \\
+v_i
+\end{bmatrix}
+\right\rangle \\
+\mathrm{grad}_R\:P_i^l &= \frac{1}{1 - \cos\Psi_{\mathcal{F}}}(-\beta_l^\top(p_i) R_i [e_c]_\times) \\
+\mathrm{grad}_p\:P_i^l &= \frac{1}{1 - \cos\Psi_{\mathcal{F}}}\left(-\frac{e_c^\top R_i^\top P_{\beta_l}}{d_{i,l}}\right)
+\label{eq:visibility_probability_derivative}
+\end{aligned}
+\end{equation}
+
+これらを用いて，複数の特徴点を追従するためのCBF制約は以下のように表される：
+\begin{equation}
+\begin{aligned}
+\sum_{l \in \mathcal{L} \cap \mathcal{C}_i}\left(\prod_{k \neq l}(1 - \phi_i^k)\right) \langle \mathrm{grad}_R\:P_i^l, \omega_i \rangle + \sum_{l \in \mathcal{L} \cap \mathcal{C}_i}\left(\prod_{k \neq l}(1 - \phi_i^k)\right) \langle \mathrm{grad}_p\:P_i^l, v_i \rangle \geq -\gamma_0 B_i
+\label{eq:multi_cbf_constraint}
+\end{aligned}
+\end{equation}
+
+これを展開すると，以下のようになる：
+\begin{equation}
+\begin{aligned}
+&\sum_{l \in \mathcal{L} \cap \mathcal{C}_i}\left(\prod_{k \neq l}(1 - \phi_i^k)\right) \frac{\beta_l^\top(p_i) R_i [e_c]_\times}{1 - \cos\Psi_{\mathcal{F}}}\omega_i \\
+&+ \sum_{l \in \mathcal{L} \cap \mathcal{C}_i}\left(\prod_{k \neq l}(1 - \phi_i^k)\right) \frac{e_c^\top R_i^\top P_{\beta_l}}{(1 - \cos\Psi_{\mathcal{F}})d_{i,l}}v_i \\
+&\leq \gamma_0 \left(1 - q - \prod_{l \in \mathcal{L}}(1 - \phi_i^l)\right)
+\label{eq:multi_cbf_constraint_expanded}
+\end{aligned}
+\end{equation}
+
+複数の特徴点を追従するためのQP問題は以下のように定式化できる：
+\begin{equation}
+\begin{aligned}
+\min_{\xi_i} \quad & \frac{1}{2}\xi_i^\top H_i \xi_i + f_i^\top \xi_i \\
+\mathrm{s.t.} \quad & A_i \xi_i \leq b_i
+\label{eq:multi_cbf_qp}
+\end{aligned}
+\end{equation}
+ここで，
+\begin{equation}
+\begin{aligned}
+A_i &= \begin{bmatrix}
+\sum_{l \in \mathcal{L} \cap \mathcal{C}_i}\left(\prod_{k \neq l}(1 - \phi_i^k)\right) \frac{\beta_l^\top(p_i) R_i [e_c]_\times}{1 - \cos\Psi_{\mathcal{F}}} \\
+\sum_{l \in \mathcal{L} \cap \mathcal{C}_i}\left(\prod_{k \neq l}(1 - \phi_i^k)\right) \frac{e_c^\top R_i^\top P_{\beta_l}}{(1 - \cos\Psi_{\mathcal{F}})d_{i,l}}
+\end{bmatrix}^\top, \\
+b_i &= \gamma_0 \left(1 - q - \prod_{l \in \mathcal{L}}(1 - \phi_i^l)\right)
+\label{eq:multi_cbf_qp_params}
+\end{aligned}
+\end{equation}
+である．
+
+\subsection{複数エージェントの共通特徴点追従}
+
+次に，複数のエージェントが共通の特徴点を追従する場合の安全制約について考える．エージェント$i$と$j$が共通の特徴点$q_l$を観測する条件は，前章で述べたように以下のように表される：
+\begin{equation}
+\begin{aligned}
+q_l \in \mathcal{C}_i \cap \mathcal{C}_j \iff (\beta_l^{\top}(p_i)R_ie_c - \cos\Psi_{\mathcal{F}})(\beta_l^{\top}(p_j)R_je_c - \cos\Psi_{\mathcal{F}}) > 0
+\label{eq:common_fov_condition}
+\end{aligned}
+\end{equation}
+
+特徴点$q_l \in \mathcal{L}$によってエッジ$(i,j) \in \mathcal{E}$における推定が成り立っている確率を以下のように定義する：
+\begin{equation}
+\begin{aligned}
+\phi_{ij}^l = P(p_i, R_i, p_j, R_j, q_l) = 
+\begin{cases}
+P_i^l P_j^l & \text{if } q_l \in \mathcal{C}_i \cap \mathcal{C}_j \\
+0 & \text{if } q_l \in \mathcal{L} \setminus (\mathcal{C}_i \cap \mathcal{C}_j)
+\end{cases}
+\label{eq:common_probability}
+\end{aligned}
+\end{equation}
+
+環境内の特徴点$q_l \in \mathcal{L}$によってエッジ$(i,j) \in \mathcal{E}$における推定が達成される確率を$q$以上に制限するため，以下の安全集合を定義する：
+\begin{equation}
+\begin{aligned}
+B_{ij} &= 1 - q - \eta_{ij} \\
+\eta_{ij} &= \prod_{l \in \mathcal{L}} (1 - \phi_{ij}^l)
+\label{eq:common_safe_set}
+\end{aligned}
+\end{equation}
+
+$B_{ij}$の時間微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\dot{B}_{ij} &= -\dot{\eta}_{ij} \\
+&= -\frac{d}{dt}\prod_{l \in \mathcal{L}}(1 - \phi_{ij}^l) \\
+&= \sum_{l \in \mathcal{L}}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)\dot{\phi}_{ij}^l
+\label{eq:common_cbf_derivative}
+\end{aligned}
+\end{equation}
+
+$\phi_{ij}^l$の時間微分は以下のように計算できる：
+\begin{equation}
+\begin{aligned}
+\dot{\phi}_{ij}^l = 
+\begin{cases}
+\dot{P}_i^l P_j^l + P_i^l \dot{P}_j^l & \text{if } q_l \in \mathcal{C}_i \cap \mathcal{C}_j \\
+0 & \text{if } q_l \in \mathcal{L} \setminus (\mathcal{C}_i \cap \mathcal{C}_j)
+\end{cases}
+\label{eq:common_probability_derivative}
+\end{aligned}
+\end{equation}
+
+エージェントごとの制御入力について分解すると，以下のようになる：
+\begin{equation}
+\begin{aligned}
+\dot{B}_{ij} &= -\dot{\eta}_{ij} \\
+&= \sum_{l \in \mathcal{L}}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)\dot{\phi}_{ij}^l \\
+&= \sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)P_j^l\dot{P}_i^l + \sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)P_i^l\dot{P}_j^l
+\label{eq:common_cbf_derivative_decomposed}
+\end{aligned}
+\end{equation}
+
+これを用いて，複数のエージェントが共通の特徴点を追従するためのCBF制約は以下のように表される：
+\begin{equation}
+\begin{aligned}
+&\sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)P_j^l \langle \mathrm{grad}_R\:P_i^l, \omega_i \rangle \\
+&+ \sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)P_i^l \langle \mathrm{grad}_R\:P_j^l, \omega_j \rangle \\
+&+ \sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)P_j^l \langle \mathrm{grad}_p\:P_i^l, v_i \rangle \\
+&+ \sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)P_i^l \langle \mathrm{grad}_p\:P_j^l, v_j \rangle \\
+&\geq -\gamma_0 B_{ij}
+\label{eq:common_cbf_constraint}
+\end{aligned}
+\end{equation}
+
+これを展開すると，以下のようになる：
+\begin{equation}
+\begin{aligned}
+&\sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right) \frac{P_j^l\beta_l^\top(p_i) R_i [e_c]_\times}{1 - \cos\Psi_{\mathcal{F}}}\omega_i \\
+&+ \sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right) \frac{P_i^l\beta_l^\top(p_j) R_j [e_c]_\times}{1 - \cos\Psi_{\mathcal{F}}}\omega_j \\
+&+ \sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)\frac{P_j^le_c^\top R_i^\top P_{\beta_l}}{(1 - \cos\Psi_{\mathcal{F}})d_{i,l}}v_i \\
+&+ \sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)\frac{P_i^le_c^\top R_j^\top P_{\beta_l}}{(1 - \cos\Psi_{\mathcal{F}})d_{j,l}}v_j \\
+&\leq \gamma_0 \left(1 - q - \prod_{l \in \mathcal{L}}(1 - \phi_{ij}^l)\right)
+\label{eq:common_cbf_constraint_expanded}
+\end{aligned}
+\end{equation}
+
+複数のエージェントが共通の特徴点を追従するためのQP問題は以下のように定式化できる：
+\begin{equation}
+\begin{aligned}
+\min_{\xi_i, \xi_j} \quad & \frac{1}{2}\xi_i^\top H_i \xi_i + f_i^\top \xi_i + \frac{1}{2}\xi_j^\top H_j \xi_j + f_j^\top \xi_j \\
+\mathrm{s.t.} \quad & A_i \xi_i + A_j \xi_j \leq b_{ij}
+\label{eq:common_cbf_qp}
+\end{aligned}
+\end{equation}
+ここで，
+\begin{equation}
+\begin{aligned}
+A_i &= \begin{bmatrix}
+\sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right) \frac{P_j^l\beta_l^\top(p_i) R_i [e_c]_\times}{1 - \cos\Psi_{\mathcal{F}}} \\
+\sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)\frac{P_j^le_c^\top R_i^\top P_{\beta_l}}{(1 - \cos\Psi_{\mathcal{F}})d_{i,l}}
+\end{bmatrix}^\top, \\
+A_j &= \begin{bmatrix}
+\sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right) \frac{P_i^l\beta_l^\top(p_j) R_j [e_c]_\times}{1 - \cos\Psi_{\mathcal{F}}} \\
+\sum_{l \in \mathcal{L} \cap \mathcal{C}_i \cap \mathcal{C}_j}\left(\prod_{k \neq l}(1 - \phi_{ij}^k)\right)\frac{P_i^le_c^\top R_j^\top P_{\beta_l}}{(1 - \cos\Psi_{\mathcal{F}})d_{j,l}}
+\end{bmatrix}^\top, \\
+b_{ij} &= \gamma_0 \left(1 - q - \prod_{l \in \mathcal{L}}(1 - \phi_{ij}^l)\right)
+\label{eq:common_cbf_qp_params}
+\end{aligned}
+\end{equation}
+である．
+
+\subsection{分散型実装}
+
+前節で導出した複数エージェントのQP問題は，中央集権的な制御を前提としている．しかし，多数のエージェントを対象とする場合，中央集権的な制御は通信負荷や計算量の面で現実的ではない．そこで，各エージェントが局所的に計算し，限定的な通信で連携する分散アルゴリズムを設計する．
+
+本研究では，プライマル・デュアル乗数法(Primal-Dual Method of Multipliers, PDMM)を用いた分散最適化手法を提案する．PDMMは，不等式制約付き最適化問題を分散的に解くための効率的なアルゴリズムである．
+
+まず，\Eqref{eq:common_cbf_qp}の制約を以下のように書き換える：
+\begin{equation}
+\begin{aligned}
+A_i \xi_i + A_j \xi_j \leq b_{ij}
+\label{eq:common_cbf_constraint_rewritten}
+\end{aligned}
+\end{equation}
+
+PDMMを用いて，この制約付き最適化問題を分散的に解くアルゴリズムは以下のようになる：
+\begin{equation}
+\begin{aligned}
+\xi_i &= \underset{\xi_i}{\text{argmin}} \:J_i(\xi_i) + z_{i|j}^\top A_i\xi_i + \frac{c}{2}\|A_i\xi_i - \frac{1}{2}b_{ij}\|^2 \\
+y_{i|j} &= z_{i|j} + c(A_i\xi_i - \frac{1}{2}b_{ij}) \\
+&\mathbf{node}_j \leftarrow \mathbf{node}_i(y_{i|j}) \\
+&\mathbf{if}\:y_{i|j} + y_{j|i} > 0 \\
+&\qquad z_{i|j} = y_{j|i} \\
+&\mathbf{else} \\
+&\qquad z_{i|j} = -y_{i|j}
+\label{eq:pdmm_algorithm}
+\end{aligned}
+\end{equation}
+ここで，$J_i(\xi_i) = \frac{1}{2}\xi_i^\top H_i \xi_i + f_i^\top \xi_i$は目的関数，$z_{i|j}$は双対変数，$c > 0$はペナルティパラメータ，$y_{i|j}$は補助変数である．
+
+各エージェントは，局所的な情報と隣接エージェントから受け取った情報を用いて，自身の制御入力$\xi_i$を計算する．このアルゴリズムは，各エージェントが局所的な最適化問題を解き，その結果を隣接エージェントと共有することで，全体として制約を満たす解を得ることができる．
+
+PDMMを用いたQP問題は以下のように定式化できる：
+\begin{equation}
+\begin{aligned}
+\min_{\xi_i} \quad & \frac{1}{2}\xi_i^\top \hat{H}_i \xi_i + \hat{f}_i^\top \xi_i \\
+\label{eq:pdmm_qp}
+\end{aligned}
+\end{equation}
+ここで，
+\begin{equation}
+\begin{aligned}
+\hat{H}_i &= H_i + c A_i^\top A_i, \\
+\hat{f}_i &= f_i + A_i^\top z_{i|j} - \frac{c}{2}A_i^\top b_{ij}
+\label{eq:pdmm_qp_params}
+\end{aligned}
+\end{equation}
+である．
+
+このように，PDMMを用いることで，複数エージェントのQP問題を分散的に解くことができる．各エージェントは，局所的な情報と隣接エージェントから受け取った情報を用いて，自身の制御入力を計算する．これにより，中央集権的な制御なしでも，共有視野を保証することができる．
+
+また，PDMMは不等式制約を直接扱えるため，スラック変数を導入する必要がなく，計算効率が良い．さらに，通信遅延や非同期更新にも対応できるため，実際のシステムへの適用が容易である．

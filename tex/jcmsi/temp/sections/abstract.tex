@@ -1,0 +1,10 @@
+\begin{abstract}
+    This paper proposes a novel distributed probabilistic pose graph filtering framework on SE(3). It integrates ADMM with Stein Variational Gradient Descent (SVGD) to address multi-modal, non-Gaussian posteriors in multi-robot SLAM.
+    We reformulate pose graph filtering as Bayesian posterior estimation on SE(3) using particles. The consistency requirement, minimizing KL divergence, is cast into an augmented Lagrangian and decomposed via ADMM. Agents perform local SVGD updates and consensus steps, communicating only summary statistics.
+    The proposed method (i) maintains multiple hypotheses for ambiguous loop closures, (ii) reduces communication by exchanging only Lagrange multipliers and particle summaries, and (iii) handles SE(3) nonlinearity. Convergence is proven under standard ADMM conditions, and KL minimization is validated.
+    Simulations demonstrate real-time convergence, outlier robustness, and accurate posterior approximation.
+\end{abstract}
+
+\begin{keywords}
+Probabilistic pose graph filtering; SE(3); ADMM; Stein Variational Gradient Descent; Multi-robot SLAM
+\end{keywords}

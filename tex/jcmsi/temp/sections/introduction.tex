@@ -1,0 +1,16 @@
+\section{Introduction}
+\label{sec:introduction}
+
+Simultaneous Localization and Mapping (SLAM) \cite{Cadena2016} is crucial for autonomous robots. Graph-based SLAM \cite{Grisetti2010}, which formulates SLAM as a nonlinear least-squares problem on SE(3), is standard. Solvers like g2o \cite{Kuemmerle2011} and iSAM2 \cite{Kaess2012} find the Maximum A Posteriori (MAP) estimate. Multi-robot SLAM (MR-SLAM) offers benefits but faces challenges in maintaining global consistency with communication constraints. Distributed architectures, such as those using Distributed Data Fusion SAM (DDF-SAM) \cite{Cunningham2013} or the Alternating Direction Method of Multipliers (ADMM) \cite{Choudhary2015, Boyd2011, Choudhary2017}, have gained prominence. Robustness to outliers, e.g., via DOOR-SLAM \cite{Lajoie2020}, is also critical.
+However, MAP-based methods discard uncertainty information and struggle with multimodality. Representing the full posterior is vital. Non-parametric methods like Particle Filters (PFs) \cite{Montemerlo2002} can represent multimodal distributions but scale poorly. This motivates scalable methods for posterior capture.
+
+Our work builds on graph-based SLAM, distributed optimization (ADMM \cite{Boyd2011, Choudhary2015}), non-parametric Bayesian inference (PFs \cite{Montemerlo2002}, SVGD \cite{Liu2016, Pavlasek2023, Koide2024MegaParticles}), probabilistic SLAM (Variational Inference \cite{Cao2024}), and robust estimation \cite{Agarwal2013, Sunderhauf2012, Olson2013, Yang2020, Latif2013, Mangelson2018}.
+Traditional robust methods often target MAP estimation; integrating robustness into a fully probabilistic framework that maintains multiple hypotheses is an open challenge.
+
+This paper proposes ADMM-based Stein Particle Filter Probabilistic Graph Filtering (ASP-PGF) for MR-SLAM. It integrates ADMM with SVGD for distributed non-parametric Bayesian inference in pose graph filtering.
+Contributions are:
+\begin{enumerate}
+    \item \textbf{Distributed Non-Parametric Posterior Estimation via ADMM and SVGD Integration:} We formulate MR-SLAM as a distributed posterior estimation task. By integrating ADMM and SVGD, our method achieves globally consistent non-parametric posterior estimation with communication efficiency, where ADMM decomposes the global inference into local SVGD-based subproblems.
+    \item \textbf{Robust Multimodal Uncertainty Handling:} The proposed framework explicitly represents complex uncertainties, including non-Gaussianity and multimodality, using SVGD. It inherently handles outliers within the Bayesian inference process, as inconsistent hypotheses are statistically down-weighted or pruned.
+\end{enumerate}
+This work advances fully probabilistic, distributed MR-SLAM, providing richer information for downstream tasks.

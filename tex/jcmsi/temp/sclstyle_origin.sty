@@ -1,0 +1,169 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%       zemi.sty
+%                                       
+%
+%       $BF#ED8&$NH/I=MQ%<%_MQ%9%?%$%k%U%!%$%k(B
+%
+%       LaTeX $B$NJ8>O$N0lNc$r<($9(B
+%       \documentstyle[twocolumn,a4j,epsf,zemi]{jarticle}
+%          \title{$B%?%$%H%k(B}
+%          \author{$B=jB08&5f<<(B \and $B;aL>(B}
+%          \date{$BF|IU$1(B}
+%		   \abstract{Abstract}
+%          \keyword{Key Words}	
+%       \begin{document}
+%          \maketitle
+%          \section{$B$^$($,$-(B}
+%               $BK\J8(B
+%       \end{document}
+
+\def\title#1{\gdef\@title{#1}}
+\def\@title{}
+\def\abstract#1{\gdef\@abstract{#1}}
+\def\@abstract{}
+\def\keyword#1{\gdef\@keyword{#1}}
+\def\@keyword{}
+\def\fnum@figure{Fig. \thefigure} % $B?^(B or Fig $B$NJQ99$O$3$3$G$*$3$J$&(B
+\def\fnum@table{Table \thetable} % $BI=(B
+\def\ronbun#1{\gdef\@ronbun{#1}}%ò_ï∂î‘çÜÇÃÉRÉ}ÉìÉh
+
+\newlength{\rengoleftmargin}
+\newlength{\rengorightmargin}
+\newlength{\rengotopmargin}
+\newlength{\rengopaperwidth}
+\newlength{\rengopaperheight}
+\newlength{\rengofootmargin}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%       $B%Z!<%80LCV$J$I$N:Y$+$$0LCV$O(B    %
+%       $B$3$3$N%^!<%8%s$ND4@0$G9T$J$&!#(B  %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%       $BMQ;f%5%$%:(B
+%
+\setlength{\rengopaperwidth}{21cm}
+\setlength{\rengopaperheight}{29.6cm}
+%
+%       $B>e2<:81&$N%^!<%8%s(B
+%
+\setlength{\rengotopmargin}{30mm}
+\setlength{\rengoleftmargin}{20mm}
+\setlength{\rengorightmargin}{20mm}
+\setlength{\rengofootmargin}{30mm}
+%
+%%%%%%%%$B$3$3$^$G(B%%%%%%%%%%%%%%%%%%%%%
+
+\columnsep18pt 
+\headheight0pt % $B%G%U%)%k%H$N%X%C%@It$O:o=|(B
+\headsep0pt
+\footskip30pt
+%\footheight15pt
+\setlength{\baselineskip}{10mm}
+\topmargin-1in
+\addtolength{\topmargin}{\rengotopmargin} % topmargin{20mm}
+\oddsidemargin-1in
+\evensidemargin-1in
+\addtolength{\oddsidemargin}{\rengoleftmargin} 
+\addtolength{\evensidemargin}{\rengoleftmargin}
+\setlength{\textwidth}{\rengopaperwidth}
+\addtolength{\textwidth}{-\rengoleftmargin}
+\addtolength{\textwidth}{-\rengorightmargin} % textwidth{175mm}
+\setlength{\textheight}{\rengopaperheight}   
+\addtolength{\textheight}{-\rengotopmargin}
+\addtolength{\textheight}{-\rengofootmargin} % textwidth{25.6mm}
+\def\maketitle{\par
+ \begingroup
+ \def\thefootnote{\fnsymbol{footnote}}
+ \def\@makefnmark{\hbox 
+ to 0pt{$^{\@thefnmark}$\hss}} 
+ \if@twocolumn 
+ \twocolumn[\@maketitle]
+ \else \newpage
+ \global\@topnum\z@ \@maketitle \fi
+ \pagestyle{plain}
+ \thispagestyle{plain}
+ \@thanks
+ \endgroup
+ \setcounter{footnote}{0}
+ \let\maketitle\relax
+ \let\@maketitle\relax
+ \gdef\@thanks{}\gdef\@author{}\gdef\@title{}\let\thanks\relax}
+ \def\@maketitle{\newpage
+ \null
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ % $B%?%$%H%k$N>e$N7d4V$O!"$3$l$rJQ99(B
+ \vskip -0cm
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ \begin{flushright}
+ {{ \lineskip .5em
+   \begin{tabular}[t]{c}
+    \@ronbun
+    \end{tabular}\par}}
+\end{flushright}
+%-------------------------------------
+\vspace{3mm}
+\hfill
+\begin{center}%
+\begin{center}%
+ \begin{minipage}{15cm}
+ \begin{center}
+  {{\LARGE \lineskip .5em
+   \begin{tabular}[t]{c}
+    \@title
+   \end{tabular}\par}}
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % $B%?%$%H%k$HL>A0$N7d4V$O!"$3$l$rJQ99(B
+  \vskip 2mm
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  {\large \lineskip .5em
+   \begin{tabular}[t]{c}
+    \@author
+   \end{tabular}\par} 
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % $BL>A0$HF|IU$N7d4V$O!"$3$l$rJQ99(B
+  \vskip 2mm
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  {\large \lineskip .5em
+   \begin{tabular}[t]{c}
+    \@date 
+   \end{tabular}\par} 
+   \end{center}
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % $BF|IU$H(Babstract$B$N7d4V$O!"$3$l$rJQ99(B  %
+  \vskip 0mm
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  {{\large \bf Abstract}:$B!!(B\@abstract \par}
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % abstract$B$H(Bkeyword$B$N7d4V$O!"$3$l$rJQ99(B  %
+  \vskip 0mm
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  {{\large \bf Key Words}:$B!!(B\@keyword \par} 
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % abstract$B$HK\J8$N7d4V$O!"$3$l$rJQ99(B  %
+  \vskip 0mm
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ \end{minipage}%
+\end{center}%
+\vspace*{0.5mm}
+ \par
+}
+
+\def\section{\@startsection {section}{1}{\z@}{1ex plus 0.3ex minus 
+ .1ex}{0.5ex plus .1ex}{\Large\bf}}
+\def\subsection{\@startsection{subsection}{2}{\z@}{0.5ex plus 0.2ex minus 
+ .05ex}{0.3ex plus .1ex}{\large\bf}}
+\def\subsubsection{\@startsection{subsubsection}{3}{\z@}{0.5ex plus 
+.2ex minus .05ex}{0.3ex plus .1ex}{\normalsize\bf}}
+\def\paragraph{\@startsection
+ {paragraph}{4}{\z@}{0.5ex plus .2ex minus .05ex}{-.2em}{\normalsize\bf}}
+\def\subparagraph{\@startsection
+ {subparagraph}{4}{\parindent}{0.5ex plus .2ex minus 
+ .05ex}{-.2em}{\normalsize\bf}}
+
+
+%%% Local Variables: %%%
+%%% mode: tex %%%
+%%% tab-width: 4 %%%
+%%% End: %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+

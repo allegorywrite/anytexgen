@@ -1,0 +1,80 @@
+% interactnlmsample.tex
+% v1.05 - August 2017
+
+\documentclass[dvipdfmx]{interact}
+\usepackage{epstopdf}
+\usepackage[caption=false]{subfig}
+
+\usepackage{graphics,amsmath,amssymb,bm,float,cases}
+\usepackage{here}
+\usepackage{comment}
+\usepackage{url}
+\usepackage{layout}
+\usepackage{tabularx}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{xcolor}
+\usepackage{multirow}
+
+
+\usepackage[numbers,sort&compress]{natbib}% Citation support using natbib.sty
+\bibpunct[, ]{[}{]}{,}{n}{,}{,}% Citation support using natbib.sty
+\renewcommand\bibfont{\fontsize{10}{12}\selectfont}% Bibliography support using natbib.sty
+\makeatletter% @ becomes a letter
+\def\NAT@def@citea{\def\@citea{\NAT@separator}}% Suppress spaces between citations using natbib.sty
+\makeatother% @ becomes a symbol again
+
+\theoremstyle{plain}% Theorem-like structures provided by amsthm.sty
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{assumption}{Assumption}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+\newtheorem{notation}{Notation}
+
+
+% \newcommand{\Figref}[1]{Figure \ref{#1}}
+% \newcommand{\Tabref}[1]{Table \ref{#1}}
+% \newcommand{\Eqref}[1]{(Equation \ref{#1})}
+% \newcommand{\Secref}[1]{Section \ref{#1}}
+% \newcommand{\Theoref}[1]{Theorem \ref{#1}}
+\DeclareGraphicsExtensions{.eps,.pdf,.png,.jpg}
+\newcommand{\Tabref}[1]{{Table~\ref{#1}}}
+\newcommand{\Eqref}[1]{Eq.~(\ref{#1})}
+\newcommand{\Figref}[1]{{Fig.~\ref{#1}}}
+
+\begin{document}
+
+\articletype{ARTICLE TEMPLATE}% Specify the article type or omit as appropriate
+
+\title{Probabilistic Multi-Agent Pose Graph Filtering on SE(3) \\ via Distributed ADMM and Stein Particle Gradient Descent}
+
+\author{
+\name{Tomoki Arita\textsuperscript{a} and Toru Namerikawa\textsuperscript{b}\thanks{CONTACT Tomoki Arita. Email: arita.tomoki@keio.jp, Toru Namerikawa. Email: namerikawa@sd.keio.ac.jp}}
+\affil{\textsuperscript{a} School of Integrated Design Engineering, Keio University, Kanagawa, Japan\\
+	\textsuperscript{b} Department of System Design Engineering, Keio University, Kanagawa, Japan}
+}
+
+\maketitle
+
+\input{sections/abstract}
+\input{sections/introduction}
+\input{sections/preliminary}
+\input{sections/problem_formulation}
+\input{sections/probabilistic_pgo}
+\input{sections/convergence}
+\input{sections/evaluation}
+\input{sections/conclusion}
+\input{sections/references}
+
+%\processdelayedfloats %%% See above for an explanation of why this command might be needed here.
+
+
+\end{document}

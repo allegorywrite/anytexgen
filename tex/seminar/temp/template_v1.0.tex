@@ -1,0 +1,84 @@
+\documentclass[12pt]{jarticle}
+% \documentclass[10.5pt]{jarticle}
+
+% Language setting
+% Replace `english' with e.g. `spanish' to change the document language
+% \usepackage[english]{babel}
+\usepackage[dvipdfmx]{graphicx}
+\usepackage[dvipdfmx]{color}
+
+% Set page size and margins
+% Replace `letterpaper' with `a4paper' for UK/EU standard size
+% \usepackage[letterpaper,top=2cm,bottom=2cm,left=2cm,right=2cm,marginparwidth=1.75cm]{geometry}
+\usepackage[letterpaper,top=2cm,bottom=3cm,left=1cm,right=1cm,marginparwidth=1cm]{geometry}
+
+% Useful packages
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{longtable}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{breqn}
+\usepackage{lscape}
+\usepackage{amsmath,amsthm,amssymb,multirow} %カンマで区切ることで一度にusepackageできる
+%\usepackage{natbib}
+\usepackage{here}
+\usepackage{color}
+\usepackage{bm}
+%\usepackage{subfig}
+\usepackage{subcaption}
+\usepackage{listings, jlisting}
+\usepackage{txfonts}
+\usepackage{comment}
+\usepackage{ascmac}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{tabularx}
+
+% 数式サイズを大きくする設定
+\newcommand{\mathbm}[1]{{\mbox{\boldmath $#1$}}}
+\newcommand{\rd}{\partial}
+\newcommand{\dd}[2]{\dfrac{\partial #1}{\partial #2}}
+\newcommand{\ddd}[2]{\dfrac{\partial^2 #1}{\partial #2^2}}
+\newcommand{\dddd}[3]{\dfrac{\partial^2 #1}{\partial #2 \partial #3}}
+\newcommand{\ol}{\overline}
+\newcommand{\bibname}{参考文献}
+\renewcommand{\figurename}{図}
+\renewcommand{\tablename}{表}
+\renewcommand{\lstlistingname}{ソースコード}
+\newcommand{\keywords}[1]{\par\noindent{\small\textbf{キーワード：} #1}\par\vspace{1em}}
+\newcommand{\Eqref}[1]{式~(\ref{#1})}
+\newcommand{\Figref}[1]{図~\ref{#1}}
+\newcommand{\Tblref}[1]{表~\ref{#1}}
+\newcommand{\Coderef}[1]{ソースコード~\ref{#1}}
+\newcommand{\Algref}[1]{Algorithm~\ref{#1}}
+\newcommand{\red}[1]{\textcolor{red}{#1}}
+\newcommand{\blue}[1]{\textcolor{blue}{#1}}
+% \newcommand{\yellow}[1]{\textcolor{yellow}{#1}}
+% \newcommand{\violet}[1]{\textcolor{violet}{#1}}
+
+\theoremstyle{plain}
+\newtheorem{thm}{Theorem}
+\newtheorem*{thm*}{Theorem}
+\theoremstyle{definition}
+\newtheorem{dfn}{Definition}
+
+\title{SE(3)上における協調自己位置推定のための\\視野共有を保証する分散型CBF}
+\author{滑川研究室\ \ \ M2 有田 朋樹}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\input{sections/abstract}
+\input{sections/introduction}
+\input{sections/preliminary}
+\input{sections/problem_formulation}
+\input{sections/cbf_for_shared_fov}
+\input{sections/hocbf_for_second_order}
+\input{sections/simulation_results}
+\input{sections/conclusion}
+\input{sections/references}
+
+\end{document}

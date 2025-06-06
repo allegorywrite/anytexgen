@@ -1,0 +1,8 @@
+product_jcmsi/template.texを以下のように修正してください
+
+1. 参考文献リスト／本文最初の引用	「[4]× [1][2]…と現れる順番にしてください」— 引用番号が登場順になっていない	① 本文中の引用番号を登場順に並べ替える
+② 参考文献リストも対応する順番へ並び替え
+
+2. Introduction と Conclusion の “Contributions”	「introでの contribution と conclusion での contribution の表現が一致していない」
+「Conclusion では 定理や数値例を引用してより具体的に」	① Introduction の貢献リストを基準に Conclusion を書き直し、用語・順序を完全一致させる
+② Conclusion 側で各貢献を裏づける具体的結果（Theorem 4.1、シミュレーション図番号など）を短く補足

@@ -1,0 +1,13 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper introduced ASP-PGF, a novel framework for multi-agent pose graph filtering that addresses ambiguity and outliers by integrating distributed optimization (ADMM) with non-parametric Bayesian inference (SVGD). We formulated PGF as approximating the full posterior via KL divergence minimization, enabling distributed computation where agents update local particle-based beliefs using SVGD, achieving consensus through ADMM.
+
+The main contributions are:
+\begin{enumerate}
+    \item \textbf{Distributed Non-Parametric Posterior Estimation via ADMM and SVGD Integration:} We formulate multi-robot PGF as a distributed posterior-estimation problem, decomposing it into local SVGD updates that exchange only summary statistics through ADMM.
+    Convergence to a KKT point is rigorously proved in Theorem 4.1, and the algorithm reaches this point within 50 iterations in a 20-agent, 2000-particle scenario.
+    \item \textbf{Robust Multimodal Uncertainty Handling:} The particle-based Bayesian representation preserves non-Gaussian, multimodal structure and down-weights outliers automatically.
+    In simulation, even with a 40\% outlier ratio the mean error remains 0.742, outperforming the state-of-the-art DPGO (0.902); the advantage widens as outlier rates increase.
+\end{enumerate}
+ASP-PGF advances robust, informative multi-agent SLAM. Future work includes real-world validation, adaptive parameter strategies, front-end integration, and further SE(3) convergence analysis, particularly addressing the challenges posed by the non-convex nature of the SE(3) manifold.

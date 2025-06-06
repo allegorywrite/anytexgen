@@ -1,0 +1,184 @@
+\section{Probabilistic Multi-Agent Pose Graph Filtering on SE(3)}
+\label{sec:probabilistic_pgf}
+
+As established in Section \ref{subsec:probabilistic_pgo}, our goal is to approximate the full posterior distribution $P({\mathbf{X}} | {\mathbf{Z}})$ by finding a distribution $q({\mathbf{X}})$ that minimizes the KL divergence $D_{KL}(q({\mathbf{X}}) \| P({\mathbf{X}} | {\mathbf{Z}}))$, which is equivalent to minimizing the variational free energy ${\mathcal{F}}[q] = \mathbb{E}_q[C({\mathbf{X}})] - {\mathcal{H}}[q]$ under a uniform prior assumption (\Eqref{eq:kl_min_cost_entropy}). This section details our approach to solving this minimization problem in a distributed multi-agent setting using a mean-field approximation and ADMM combined with SVGD.
+
+\subsection{Mean-Field Factorization of the Joint Posterior}
+\label{subsec:mean_field}
+
+The joint posterior distribution $P({\mathbf{X}} | {\mathbf{Z}})$ over all poses ${\mathbf{X}} = \{X_i\}_{i \in {\mathcal{V}}}$ is generally high-dimensional and complex, making direct minimization of \Eqref{eq:kl_min_cost_entropy} intractable. To make the problem computationally feasible, particularly in a distributed setting, we employ a mean-field approximation. We assume that the approximating distribution $q({\mathbf{X}})$ factorizes over the individual poses (nodes in the graph):
+\begin{equation}
+\begin{aligned}
+q({\mathbf{X}}) \approx \prod_{i \in {\mathcal{V}}} q_i(X_i),
+\label{eq:mean_field_approx}
+\end{aligned}
+\end{equation}
+where each $q_i(X_i)$ is a distribution over the pose $X_i$ of node $i$. This factorization assumes independence between the poses in the approximating distribution, simplifying the optimization.
+
+Under the mean-field assumption, the entropy term decomposes additively:
+\begin{equation}
+\begin{aligned}
+{\mathcal{H}}[q] &= -\int q({\mathbf{X}}) \log q({\mathbf{X}}) d{\mathbf{X}} \\
+&= -\int \prod_k q_k(X_k) \sum_i \log q_i(X_i) d{\mathbf{X}} \\
+&= -\sum_i \int q_i(X_i) \log q_i(X_i) dX_i \prod_{k \neq i} \int q_k(X_k) dX_k \\
+&= \sum_{i \in {\mathcal{V}}} {\mathcal{H}}[q_i].
+\label{eq:entropy_mean_field}
+\end{aligned}
+\end{equation}
+The expected cost term becomes:
+\begin{equation}
+\begin{aligned}
+\mathbb{E}_q[C({\mathbf{X}})] &= \mathbb{E}_q \left[ \sum_{(i,j) \in {\mathcal{E}}} c_{ij}(X_i, X_j) \right] \\
+% &= \sum_{(i,j) \in {\mathcal{E}}} \mathbb{E}_q [c_{ij}(X_i, X_j)] \\
+&= \sum_{(i,j) \in {\mathcal{E}}} \iint c_{ij}(X_i, X_j) q_i(X_i) q_j(X_j) dX_i dX_j,
+\label{eq:expected_cost_mean_field}
+\end{aligned}
+\end{equation}
+where $c_{ij}(X_i, X_j) = \frac{1}{2} \| \log({\tilde{Z}}_{ij}^{-1} X_i^{-1} X_j)^{\vee} \|^2_{\Omega_{ij}}$.
+
+Substituting these into the free energy minimization \Eqref{eq:kl_min_cost_entropy}, the objective becomes:
+\begin{equation}
+\begin{aligned}
+\min_{q_1, \dots, q_N} \left( \sum_{(i,j) \in {\mathcal{E}}} \mathbb{E}_{q_i, q_j}[c_{ij}(X_i, X_j)] - \sum_{i \in {\mathcal{V}}} {\mathcal{H}}[q_i] \right).
+\label{eq:kl_min_mean_field}
+\end{aligned}
+\end{equation}
+This objective involves minimizing the expected sum of pairwise costs minus the sum of individual entropies. While simpler than the original problem, directly optimizing \Eqref{eq:kl_min_mean_field} with respect to the distributions $q_i$ is still challenging. The coupling between $q_i$ and $q_j$ in the expectation term $\mathbb{E}_{q_i, q_j}[c_{ij}(X_i, X_j)]$ prevents straightforward independent updates for each $q_i$.
+
+To address this coupling and enable distributed optimization, we will employ ADMM, as detailed in the next subsection. The core idea is to introduce auxiliary variables and constraints to decouple the pairwise expectations, allowing for iterative updates of the individual $q_i$ distributions using SVGD.
+
+\subsection{ADMM Updates for Distributed KL Minimization}
+\label{subsec:admm_updates}
+
+To solve the mean-field KL minimization problem \Eqref{eq:kl_min_mean_field} in a distributed manner, we apply the Alternating Direction Method of Multipliers (ADMM). The coupling between $q_i$ and $q_j$ occurs in the expected cost term $\mathbb{E}_{q_i, q_j}[c_{ij}(X_i, X_j)]$. We introduce auxiliary variables $\zeta_{ij}$ for each edge $(i,j) \in {\mathcal{E}}$ to represent these expected values:
+\begin{equation}
+\begin{aligned}
+\zeta_{ij} = \mathbb{E}_{q_i, q_j}[c_{ij}(X_i, X_j)] = \iint c_{ij}(X_i, X_j) q_i(X_i) q_j(X_j) dX_i dX_j.
+\label{eq:aux_variable_zeta}
+\end{aligned}
+\end{equation}
+With these auxiliary variables, the optimization problem \Eqref{eq:kl_min_mean_field} can be rewritten as a constrained optimization problem:
+\begin{equation}
+\begin{aligned}
+\min_{q_1, \dots, q_N, \{\zeta_{ij}\}} & \left( \sum_{(i,j) \in {\mathcal{E}}} \zeta_{ij} - \sum_{i \in {\mathcal{V}}} {\mathcal{H}}[q_i] \right) \\
+\text{s.t.} \quad & \zeta_{ij} = \mathbb{E}_{q_i, q_j}[c_{ij}(X_i, X_j)], \quad \forall (i,j) \in {\mathcal{E}}.
+\label{eq:kl_min_constrained}
+\end{aligned}
+\end{equation}
+The augmented Lagrangian ${\mathcal{L}}_{\rho}$ for this problem is:
+\begin{equation}
+\begin{aligned}
+{\mathcal{L}}_{\rho}(\{q_i\}, \{\zeta_{ij}\}, \{\lambda_{ij}\}) = & \sum_{(i,j) \in {\mathcal{E}}} \zeta_{ij} - \sum_{i \in {\mathcal{V}}} {\mathcal{H}}[q_i] + \sum_{(i,j) \in {\mathcal{E}}} \lambda_{ij} (\zeta_{ij} - \mathbb{E}_{q_i, q_j}[c_{ij}]) \\
+& + \frac{\rho}{2} \sum_{(i,j) \in {\mathcal{E}}} (\zeta_{ij} - \mathbb{E}_{q_i, q_j}[c_{ij}])^2,
+\label{eq:admm_kl_lagrangian}
+\end{aligned}
+\end{equation}
+where $\lambda_{ij}$ are the dual variables and $\rho > 0$ is the penalty parameter. Note that $\mathbb{E}_{q_i, q_j}[c_{ij}]$ is shorthand for the integral in \Eqref{eq:aux_variable_zeta}.
+
+The ADMM algorithm proceeds by iteratively minimizing ${\mathcal{L}}_{\rho}$ with respect to $\zeta_{ij}$ and $q_i$, followed by an update of the dual variables $\lambda_{ij}$.
+
+\textbf{1. $\zeta$-update:} Minimize ${\mathcal{L}}_{\rho}$ with respect to $\zeta_{ij}$ for all edges $(i,j) \in {\mathcal{E}}$, keeping $q_i$ and $\lambda_{ij}$ fixed.
+\begin{equation}
+\begin{aligned}
+\zeta_{ij}^{k+1} = \underset{\zeta_{ij}}{\arg\min} & \left( \zeta_{ij} + \lambda_{ij}^k (\zeta_{ij} - \mathbb{E}_{q_i^k, q_j^k}[c_{ij}]) + \frac{\rho}{2} (\zeta_{ij} - \mathbb{E}_{q_i^k, q_j^k}[c_{ij}])^2 \right).
+\label{eq:admm_zeta_update_min}
+\end{aligned}
+\end{equation}
+Taking the derivative with respect to $\zeta_{ij}$ and setting it to zero:
+\begin{equation}
+\begin{aligned}
+1 + \lambda_{ij}^k + \rho (\zeta_{ij} - \mathbb{E}_{q_i^k, q_j^k}[c_{ij}]) = 0.
+\label{eq:admm_zeta_deriv}
+\end{aligned}
+\end{equation}
+Solving for $\zeta_{ij}$ yields the update:
+\begin{equation}
+\begin{aligned}
+\zeta_{ij}^{k+1} = \mathbb{E}_{q_i^k, q_j^k}[c_{ij}] - \frac{1 + \lambda_{ij}^k}{\rho}.
+\label{eq:admm_zeta_update}
+\end{aligned}
+\end{equation}
+This step can be performed locally for each edge.
+
+\textbf{2. $q$-update:} Minimize ${\mathcal{L}}_{\rho}$ with respect to each $q_i$ for all nodes $i \in {\mathcal{V}}$, keeping $\zeta_{ij}$ and $\lambda_{ij}$ fixed at their latest values ($\zeta_{ij}^{k+1}, \lambda_{ij}^k$). The terms involving $q_i$ define the local objective function ${\mathcal{L}}_{\rho, i}$ for agent $i$:
+\begin{equation}
+\begin{aligned}
+q_i^{k+1} = \underset{q_i}{\arg\min} & \underbrace{\left( -{\mathcal{H}}[q_i] + \sum_{j \in {\mathcal{N}}_i} \left[ \lambda_{ij}^k (\zeta_{ij}^{k+1} - \mathbb{E}_{q_i, q_j^k}[c_{ij}]) + \frac{\rho}{2} (\zeta_{ij}^{k+1} - \mathbb{E}_{q_i, q_j^k}[c_{ij}])^2 \right] \right)}_{\text{Objective for } q_i: {\mathcal{L}}_{\rho, i}},
+\label{eq:admm_q_update_min}
+\end{aligned}
+\end{equation}
+where ${\mathcal{N}}_i$ denotes the neighbors of node $i$ in the graph. Taking the functional derivative of ${\mathcal{L}}_{\rho, i}$ with respect to $q_i(X_i)$ and setting it to zero (using $\nabla_{q_i} {\mathcal{H}}[q_i] = -1 - \log q_i(X_i)$ and $\nabla_{q_i} \mathbb{E}_{q_i, q_j^k}[c_{ij}] = \int c_{ij}(X_i, X_j) q_j^k(X_j) dX_j = \bar{c}_{ij}(X_i)$):
+\begin{equation}
+\begin{aligned}
+\nabla_{q_i} {\mathcal{L}}_{\rho, i} = & -(-1 - \log q_i(X_i)) + \sum_{j \in {\mathcal{N}}_i} [-\lambda_{ij}^k - \rho(\zeta_{ij}^{k+1} - \mathbb{E}_{q_i, q_j^k}[c_{ij}])] \nabla_{q_i} \mathbb{E}_{q_i, q_j^k}[c_{ij}] \\
+= & 1 + \log q_i(X_i) + \sum_{j \in {\mathcal{N}}_i} [-\lambda_{ij}^k - \rho(\zeta_{ij}^{k+1} - \mathbb{E}_{q_i, q_j^k}[c_{ij}])] \bar{c}_{ij}(X_i) = 0.
+\label{eq:admm_q_deriv}
+\end{aligned}
+\end{equation}
+This equation implicitly defines the optimal $q_i^{k+1}$. Rearranging gives:
+\begin{equation}
+\begin{aligned}
+\log q_i^{k+1}(X_i) \propto \sum_{j \in {\mathcal{N}}_i} [\lambda_{ij}^k + \rho(\zeta_{ij}^{k+1} - \mathbb{E}_{q_i, q_j^k}[c_{ij}])] \bar{c}_{ij}(X_i).
+\label{eq:admm_q_solution_form}
+\end{aligned}
+\end{equation}
+Finding $q_i^{k+1}$ directly is difficult. However, the condition $\nabla_{q_i} {\mathcal{L}}_{\rho, i} = 0$ implies that the update step aims to find a distribution $q_i$ such that its log-density matches the derived expression. This is equivalent to minimizing the KL divergence $D_{KL}(q_i \| q_i^*)$, where $q_i^*$ is the (unnormalized) target distribution defined by the right-hand side of \Eqref{eq:admm_q_solution_form}.
+We can solve this KL minimization problem using SVGD. The SVGD update for particles $\{X_{i,l}\}_{l=1}^m$ representing $q_i$ aims to drive them towards $q_i^*$:
+\begin{equation}
+\begin{aligned}
+X_{i,l} \leftarrow X_{i,l} \exp(\epsilon \boldsymbol{\Phi}_i^*(X_{i,l})),
+\label{eq:admm_svgd_update}
+\end{aligned}
+\end{equation}
+where the update direction $\boldsymbol{\Phi}_i^*$ is calculated using \Eqref{eq:svgd_practical_update} with the target log-density gradient $\nabla_{X_i} \log q_i^*(X_i)$:
+\begin{equation}
+\begin{aligned}
+\nabla_{X_i} \log q_i^*(X_i) \approx \sum_{j \in {\mathcal{N}}_i} W_{ij}^k \, \mathbb{E}_{q_j^k}[\nabla_{X_i} c_{ij}(X_i, X_j)],
+\label{eq:admm_target_gradient}
+\end{aligned}
+\end{equation}
+where $W_{ij}^k = \lambda_{ij}^k + \rho(\zeta_{ij}^{k+1} - \mathbb{E}_{q_i^k, q_j^k}[c_{ij}])$ acts as a weight, and the expectation $\mathbb{E}_{q_j^k}[\cdot]$ is approximated using the particles of agent $j$. The gradient $\nabla_{X_i} c_{ij}(X_i, X_j)$ is required for the SVGD update. Following standard practices in PGO, we approximate this gradient using the Gauss-Newton method on the SE(3) manifold. Specifically, we compute the gradient of the cost term $c_{ij}(X_i, X_j) = \frac{1}{2} \| {\mathbf{r}}_{ij}(X_i, X_j)^\vee \|^2_{\Omega_{ij}}$, where ${\mathbf{r}}_{ij}(X_i, X_j) = \log({\tilde{Z}}_{ij}^{-1} X_i^{-1} X_j)$, with respect to a perturbation $\boldsymbol{\xi} \in {\mathfrak{se}}(3)$ applied to $X_i$ (i.e., $X_i \exp(\boldsymbol{\xi}^\wedge)$). The gradient is approximated as:
+\begin{equation}
+\begin{aligned}
+\nabla_{X_i} c_{ij}(X_i, X_j) &\approx ({\mathbf{H}}_{ij})^{-1} {\mathbf{b}}_{ij}, \\
+\text{where} \quad {\mathbf{H}}_{ij} &= ({\mathbf{J}}_{ij})^\top \Omega_{ij} {\mathbf{J}}_{ij}, \\
+{\mathbf{b}}_{ij} &= -({\mathbf{J}}_{ij})^\top \Omega_{ij} {\mathbf{r}}_{ij}(X_i, X_j)^\vee, \\
+{\mathbf{J}}_{ij} &= \left. \frac{\partial ({\mathbf{r}}_{ij}(X_i \exp(\boldsymbol{\xi}^\wedge), X_j)^\vee)}{\partial \boldsymbol{\xi}} \right|_{\boldsymbol{\xi}=\mathbf{0}}.
+\label{eq:gradient_cij_gauss_newton}
+\end{aligned}
+\end{equation}
+Here, ${\mathbf{J}}_{ij}$ is the Jacobian of the residual vector ${\mathbf{r}}_{ij}^\vee$ with respect to the perturbation $\boldsymbol{\xi}$ evaluated at $\boldsymbol{\xi}=\mathbf{0}$. The derivation and explicit form of this Jacobian on SE(3) can be found in standard literature, for example, in the tutorial by Blanco \cite{Blanco2012ATO}. The term $({\mathbf{H}}_{ij})^{-1} {\mathbf{b}}_{ij}$ represents the update step in the tangent space at $X_i$ derived from the Gauss-Newton approximation. This gradient is then used within the SVGD update \Eqref{eq:admm_svgd_update} via \Eqref{eq:admm_target_gradient}.
+
+\textbf{3. $\lambda$-update:} Update the dual variables based on the residual:
+\begin{equation}
+\begin{aligned}
+\lambda_{ij}^{k+1} = \lambda_{ij}^k + \rho (\zeta_{ij}^{k+1} - \mathbb{E}_{q_i^{k+1}, q_j^{k+1}}[c_{ij}]).
+\label{eq:admm_lambda_update_kl}
+\end{aligned}
+\end{equation}
+This step requires re-evaluating the expectation with the updated distributions $q_i^{k+1}$.
+
+These three steps constitute one iteration of the ADMM algorithm for distributed KL minimization. By iterating these updates, the individual distributions $q_i$ converge towards a state that minimizes the global KL divergence under the mean-field assumption, effectively approximating the joint posterior $P({\mathbf{X}} | {\mathbf{Z}})$. The overall procedure is summarized in Algorithm \ref{alg:admm_svgd_pgf}.
+
+\begin{algorithm}[H]
+\caption{Distributed Probabilistic PGF via ADMM and SVGD (ASP-PGF)}
+\label{alg:admm_svgd_pgf}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Pose graph $({\mathcal{V}}, {\mathcal{E}})$, measurements $\{{\tilde{Z}}_{ij}, \Omega_{ij}\}_{(i,j) \in {\mathcal{E}}}$, number of particles $m$, ADMM parameter $\rho$, SVGD step size $\epsilon$.
+\STATE \textbf{Initialize:} For each node $i \in {\mathcal{V}}$, initialize particle set $\{X_{i,l}^0\}_{l=1}^m$ representing $q_i^0$. Initialize dual variables $\lambda_{ij}^0 = 0$ for all $(i,j) \in {\mathcal{E}}$. Set iteration counter $k=0$.
+\REPEAT
+    \STATE \textbf{// $\zeta$-update (for each edge $(i,j) \in {\mathcal{E}}$ in parallel)}
+    \STATE Compute $\mathbb{E}_{q_i^k, q_j^k}[c_{ij}]$ using current particles $\{X_{i,l}^k\}, \{X_{j,l}^k\}$.
+    \STATE Update $\zeta_{ij}^{k+1} = \mathbb{E}_{q_i^k, q_j^k}[c_{ij}] - (1 + \lambda_{ij}^k)/\rho$ using \Eqref{eq:admm_zeta_update}.
+    \STATE \textbf{// $q$-update (for each node $i \in {\mathcal{V}}$ in parallel)}
+    \STATE Compute target gradient $\nabla_{X_i} \log q_i^*(X_i)$ using \Eqref{eq:admm_target_gradient}, approximating expectations and gradients using particles $\{X_{j,l}^k\}_{j \in {\mathcal{N}}_i}$ and \Eqref{eq:gradient_cij_gauss_newton}.
+    \STATE Compute SVGD update direction $\boldsymbol{\Phi}_i^*(X_{i,l}^k)$ using \Eqref{eq:svgd_practical_update}.
+    \STATE Update particles: $X_{i,l}^{k+1} = X_{i,l}^k \exp(\epsilon \boldsymbol{\Phi}_i^*(X_{i,l}^k))$ for $l=1, \dots, m$ using \Eqref{eq:admm_svgd_update}. This defines $q_i^{k+1}$.
+    \STATE \textbf{// $\lambda$-update (for each edge $(i,j) \in {\mathcal{E}}$ in parallel)}
+    \STATE Compute $\mathbb{E}_{q_i^{k+1}, q_j^{k+1}}[c_{ij}]$ using updated particles $\{X_{i,l}^{k+1}\}, \{X_{j,l}^{k+1}\}$.
+    \STATE Update $\lambda_{ij}^{k+1} = \lambda_{ij}^k + \rho (\zeta_{ij}^{k+1} - \mathbb{E}_{q_i^{k+1}, q_j^{k+1}}[c_{ij}])$ using \Eqref{eq:admm_lambda_update_kl}.
+    \STATE Increment $k \leftarrow k+1$.
+\UNTIL{convergence criteria met (e.g., primal/dual residuals below threshold)}
+\STATE \textbf{Output:} Approximated posterior distributions $\{q_i^*\}_{i \in {\mathcal{V}}}$ represented by final particle sets $\{X_{i,l}^*\}_{l=1}^m$.
+\end{algorithmic}
+\end{algorithm}

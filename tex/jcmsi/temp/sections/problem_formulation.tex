@@ -1,0 +1,122 @@
+\section{Problem Formulation}
+\label{sec:problem_formulation}
+
+This section formally defines the multi-agent pose graph filtering problem addressed in this paper. We begin by establishing the notation used for representing poses and transformations on the Special Euclidean group SE(3), followed by the deterministic and probabilistic formulations of the pose graph filtering problem.
+
+\subsection{Notation on SE(3)}
+\label{subsec:notation_se3}
+
+We represent the state (pose) of an agent $i$ at time $t$ as an element of the Special Euclidean group SE(3), denoted by $X_i^t \in \text{SE}(3)$. SE(3) is the group of rigid body transformations in three-dimensional space, combining rotation and translation. An element $X \in \text{SE}(3)$ can be represented by a $4 \times 4$ homogeneous transformation matrix:
+\begin{equation}
+\begin{aligned}
+X =
+\begin{pmatrix}
+{\mathbf{R}} & {\mathbf{t}} \\
+{\mathbf{0}}^{\top} & 1
+\end{pmatrix} \in {\mathbb{R}}^{4\times4},
+\label{eq:se3_matrix_form}
+\end{aligned}
+\end{equation}
+where ${\mathbf{R}} \in \text{SO}(3)$ is a $3 \times 3$ rotation matrix representing the orientation, and ${\mathbf{t}} \in {\mathbb{R}}^3$ is the translation vector representing the position. SO(3) is the Special Orthogonal group, the space of $3 \times 3$ orthogonal matrices with determinant +1.
+
+The Lie algebra associated with SE(3) is denoted by ${\mathfrak{se}}(3)$. It is the tangent space to the identity element of SE(3) and represents infinitesimal transformations (velocities). An element $\boldsymbol{\xi} \in {\mathfrak{se}}(3)$ is a 6-dimensional vector, often called a twist, composed of translational and rotational velocity components: $\boldsymbol{\xi} = (\boldsymbol{\nu}^{\top}, \boldsymbol{\omega}^{\top})^{\top}$, where $\boldsymbol{\nu} \in {\mathbb{R}}^3$ is the translational velocity and $\boldsymbol{\omega} \in {\mathbb{R}}^3$ is the rotational velocity.
+
+We use the hat operator $(\cdot)^{\wedge}$ to map elements from the vector space ${\mathbb{R}}^6$ to the Lie algebra ${\mathfrak{se}}(3)$ represented as $4 \times 4$ matrices:
+\begin{equation}
+\begin{aligned}
+\boldsymbol{\xi}^{\wedge} =
+\begin{pmatrix}
+\boldsymbol{\omega}^{\wedge} & \boldsymbol{\nu} \\
+{\mathbf{0}}^{\top} & 0
+\end{pmatrix} \in {\mathbb{R}}^{4\times4},
+\label{eq:se3_hat_operator}
+\end{aligned}
+\end{equation}
+where $\boldsymbol{\omega}^{\wedge}$ is the skew-symmetric matrix corresponding to the rotational velocity vector $\boldsymbol{\omega} \in {\mathbb{R}}^3$:
+\begin{equation}
+\begin{aligned}
+\boldsymbol{\omega}^{\wedge} =
+\begin{pmatrix}
+0 & -\omega_z & \omega_y \\
+\omega_z & 0 & -\omega_x \\
+-\omega_y & \omega_x & 0
+\end{pmatrix} \in {\mathfrak{so}}(3).
+\label{eq:so3_hat_operator}
+\end{aligned}
+\end{equation}
+Here, ${\mathfrak{so}}(3)$ is the Lie algebra of SO(3).
+
+The exponential map $\exp: {\mathfrak{se}}(3) \to \text{SE}(3)$ maps an element from the Lie algebra to the Lie group. For $\boldsymbol{\xi} = (\boldsymbol{\nu}^{\top}, \boldsymbol{\omega}^{\top})^{\top} \in {\mathfrak{se}}(3)$, the exponential map is given by:
+\begin{equation}
+\begin{aligned}
+\exp(\boldsymbol{\xi}^{\wedge}) =
+\begin{pmatrix}
+\exp(\boldsymbol{\omega}^{\wedge}) & {\mathbf{V}}(\boldsymbol{\omega}) \boldsymbol{\nu} \\
+{\mathbf{0}}^{\top} & 1
+\end{pmatrix} \in \text{SE}(3),
+\label{eq:se3_exp_map}
+\end{aligned}
+\end{equation}
+where $\exp(\boldsymbol{\omega}^{\wedge}) \in \text{SO}(3)$ is the matrix exponential for rotations (Rodrigues' formula), and ${\mathbf{V}}(\boldsymbol{\omega})$ is a $3 \times 3$ matrix:
+\begin{equation}
+\begin{aligned}
+\exp(\boldsymbol{\omega}^{\wedge}) &= {\mathbf{I}}_3 + \frac{\sin \theta}{\theta } \boldsymbol{\omega}^{\wedge} + \frac{1-\cos \theta }{\theta^2}(\boldsymbol{\omega}^{\wedge})^2, \\
+{\mathbf{V}}(\boldsymbol{\omega}) &= {\mathbf{I}}_3 + \frac{1-\cos\theta}{\theta^2}\boldsymbol{\omega}^{\wedge} + \frac{\theta-\sin \theta}{\theta^3}(\boldsymbol{\omega}^{\wedge})^2,
+\label{eq:so3_exp_and_V}
+\end{aligned}
+\end{equation}
+with $\theta = \|\boldsymbol{\omega}\|$.
+
+The inverse operation, the logarithm map $\log: \text{SE}(3) \to {\mathfrak{se}}(3)$, maps an element from the group back to the algebra. The vee operator $(\cdot)^{\vee}$ maps elements from the matrix representation of the Lie algebra back to the vector space ${\mathbb{R}}^6$. These operations allow us to represent differences between poses in the tangent space. For two poses $X_1, X_2 \in \text{SE}(3)$, their relative transformation is $X_{12} = X_1^{-1} X_2$. The difference in the tangent space at the identity is $\boldsymbol{\xi}_{12} = (\log(X_{12}))^{\vee}$.
+
+\subsection{Probabilistic Problem Formulation for PGF}
+\label{subsec:probabilistic_pgo}
+
+The Pose Graph Filtering (PGF) problem aims to estimate the set of poses ${\mathbf{X}} = \{X_i\}_{i \in {\mathcal{V}}}$ for a collection of agents or time steps (nodes ${\mathcal{V}}$ in the graph), given a set of relative pose measurements ${\tilde{Z}}_{ij}$ between pairs of poses $(i, j) \in {\mathcal{E}}$ (edges ${\mathcal{E}}$ in the graph). These measurements typically come from odometry or loop closures. Each measurement ${\tilde{Z}}_{ij} \in \text{SE}(3)$ represents the measured transformation from pose $X_i$ to pose $X_j$. The error $E_{ij}(X_i, X_j) = {\tilde{Z}}_{ij}^{-1} (X_i^{-1} X_j)$ represents the discrepancy.
+
+From a probabilistic perspective, PGF aims to estimate the posterior $P({\mathbf{X}} | {\mathbf{Z}})$ 
+of poses${\mathbf{X}}$ given measurements ${\mathbf{Z}} = \{{\tilde{Z}}_{ij}\}$. Assuming independent Gaussian errors $\log(E_{ij}(X_i,X_j))^{\vee} \sim {\mathcal{N}}({\mathbf{0}}, \Sigma_{ij})$, the likelihood $P({\tilde{Z}}_{ij} | X_i, X_j) \propto \exp( -\frac{1}{2} \| \log({\tilde{Z}}_{ij}^{-1} X_i^{-1} X_j)^{\vee} \|^2_{\Omega_{ij}} )$.
+The total likelihood is $P({\mathbf{Z}} | {\mathbf{X}}) = \prod P({\tilde{Z}}_{ij} | X_i, X_j)$.
+By Bayes' theorem, $P({\mathbf{X}} | {\mathbf{Z}}) \propto P({\mathbf{Z}} | {\mathbf{X}}) P({\mathbf{X}})$.
+The Maximum A Posteriori (MAP) estimate ${\mathbf{X}}^*_{MAP}$ maximizes $P({\mathbf{X}} | {\mathbf{Z}})$, or equivalently minimizes:
+\begin{equation}
+\begin{aligned}
+J_{MAP}({\mathbf{X}}) = \frac{1}{2} \sum_{(i,j) \in {\mathcal{E}}} \| \log({\tilde{Z}}_{ij}^{-1} X_i^{-1} X_j)^{\vee} \|^2_{\Omega_{ij}} - \log P({\mathbf{X}}).
+\label{eq:map_estimation_min_pgf}
+\end{aligned}
+\end{equation}
+With a uniform prior $P({\mathbf{X}})$, this reduces to a nonlinear least-squares problem.
+Standard PGF finds the posterior mode, discarding uncertainty. A more general approach approximates the full posterior $P({\mathbf{X}} | {\mathbf{Z}})$ by finding $q({\mathbf{X}})$ that minimizes the Kullback-Leibler (KL) divergence:
+\begin{equation}
+\begin{aligned}
+q^*({\mathbf{X}}) = \underset{q \in {\mathcal{Q}}}{\arg\min} \, D_{KL}(q({\mathbf{X}}) \| P({\mathbf{X}} | {\mathbf{Z}})).
+\label{eq:kl_min_objective}
+\end{aligned}
+\end{equation}
+Minimizing the KL divergence is equivalent to minimizing the variational free energy ${\mathcal{F}}[q]$ (since the evidence $P({\mathbf{Z}})$ is constant w.r.t. $q$):
+\begin{equation}
+\begin{aligned}
+D_{KL}(q \| P) % &= \int q({\mathbf{X}}) \log \frac{q({\mathbf{X}})}{P({\mathbf{X}} | {\mathbf{Z}})} d{\mathbf{X}} \\
+% &= -{\mathcal{H}}[q] + \mathbb{E}_q[-\log P({\mathbf{Z}} | {\mathbf{X}}) - \log P({\mathbf{X}})] + \log P({\mathbf{Z}}) \\
+&= {\mathcal{F}}[q] + \log P({\mathbf{Z}}), \\
+\text{where} \quad {\mathcal{F}}[q] &= \mathbb{E}_q[-\log P({\mathbf{Z}} | {\mathbf{X}}) - \log P({\mathbf{X}})] - {\mathcal{H}}[q].
+\label{eq:kl_free_energy}
+\end{aligned}
+\end{equation}
+Here, ${\mathcal{H}}[q] = -\int q({\mathbf{X}}) \log q({\mathbf{X}}) d{\mathbf{X}}$ is the entropy of the distribution $q$. Assuming a uniform prior $P({\mathbf{X}})$ and using the likelihood definition described earlier (leading to the MAP formulation in \Eqref{eq:map_estimation_min_pgf}), the term $-\log P({\mathbf{Z}} | {\mathbf{X}})$ corresponds to the PGF cost function (up to constants):
+\begin{equation}
+\begin{aligned}
+C({\mathbf{X}}) = \frac{1}{2} \sum_{(i,j) \in {\mathcal{E}}} \| \log({\tilde{Z}}_{ij}^{-1} X_i^{-1} X_j)^{\vee} \|^2_{\Omega_{ij}}.
+\label{eq:cost_function_C}
+\end{aligned}
+\end{equation}
+Thus, minimizing the KL divergence becomes equivalent to minimizing the free energy, which involves a trade-off between minimizing the expected cost and maximizing the entropy:
+\begin{equation}
+\begin{aligned}
+\min_q {\mathcal{F}}[q] = \min_q \left( \mathbb{E}_q[C({\mathbf{X}})] - {\mathcal{H}}[q] \right).
+\label{eq:kl_min_cost_entropy}
+\end{aligned}
+\end{equation}
+This formulation seeks a distribution $q$ that concentrates on low-cost configurations (low $\mathbb{E}_q[C({\mathbf{X}})]$) while maximizing entropy ${\mathcal{H}}[q]$ (representing uncertainty).
+
+% The standard MAP estimation \Eqref{eq:map_estimation_min_pgf} can be recovered as a special case of this KL minimization framework. If we restrict the approximating distribution $q({\mathbf{X}})$ to be a Dirac delta function centered at a single point ${\mathbf{X}}_0$, i.e., $q({\mathbf{X}}) = \delta({\mathbf{X}} - {\mathbf{X}}_0)$, then the entropy term ${\mathcal{H}}[q]$ becomes negative infinity (or is undefined, but its contribution vanishes in the limit). The expectation $\mathbb{E}_q[C({\mathbf{X}})]$ simply evaluates the cost function at ${\mathbf{X}}_0$, i.e., $\mathbb{E}_q[C({\mathbf{X}})] = C({\mathbf{X}}_0)$. In this case, minimizing the free energy (ignoring the problematic entropy term) reduces to minimizing $C({\mathbf{X}}_0)$, which is exactly the deterministic PGF problem \Eqref{eq:deterministic_pgf_final} (equivalent to MAP estimation with a uniform prior). Therefore, the deterministic formulation finds a single point estimate by implicitly using a Dirac delta approximation within the broader probabilistic framework of KL divergence minimization. Our work, detailed in the following sections, focuses on using more expressive non-parametric distributions for $q({\mathbf{X}})$ to capture the full posterior uncertainty.
