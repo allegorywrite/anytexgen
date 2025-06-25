@@ -59,6 +59,12 @@ fi
 # PDFファイルを検索して処理
 for pdf_file in "$MATERIALS_DIR"/*.pdf; do
     if [ -f "$pdf_file" ]; then
+        # _ignore.pdfで終わるファイルをスキップ
+        if [[ "$(basename "$pdf_file")" == *_ignore.pdf ]]; then
+            echo "スキップ: $(basename "$pdf_file") (_ignore.pdfファイル)"
+            continue
+        fi
+        
         PDF_COUNT=$((PDF_COUNT + 1))
         echo ""
         echo "=== PDFファイル $PDF_COUNT を処理中 ==="
